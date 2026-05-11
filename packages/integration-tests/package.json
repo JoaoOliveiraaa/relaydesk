@@ -1,0 +1,15 @@
+{
+  "name": "@relaydesk/integration-tests",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "^10.16.0",
+    "@types/node": "^22.10.0",
+    "typescript": "5.7.3",
+    "vitest": "^3.0.5"
+  }
+}

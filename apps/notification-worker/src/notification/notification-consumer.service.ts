@@ -7,6 +7,7 @@ import {
   createAmqpConnection,
   QUEUES,
   type AmqpConnection,
+  type AmqpConsumerHandle,
   type ConfirmChannel,
 } from '@relaydesk/queue';
 
@@ -15,6 +16,7 @@ export class NotificationConsumerService implements OnModuleInit, OnModuleDestro
   private readonly logger = new Logger(NotificationConsumerService.name);
   private conn!: AmqpConnection;
   private ch!: ConfirmChannel;
+  private consumer?: AmqpConsumerHandle;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -23,7 +25,7 @@ export class NotificationConsumerService implements OnModuleInit, OnModuleDestro
     this.conn = await createAmqpConnection(env.RABBITMQ_URL);
     this.ch = await this.conn.createConfirmChannel();
     await assertRelayTopology(this.ch);
-    await consumeWithRetry(
+    this.consumer = await consumeWithRetry(
       this.ch,
       QUEUES.notificationSend,
       async (payload) => {
@@ -35,6 +37,11 @@ export class NotificationConsumerService implements OnModuleInit, OnModuleDestro
   }
 
   async onModuleDestroy(): Promise<void> {
+    try {
+      await this.consumer?.cancel();
+    } catch {
+      /* ignore */
+    }
     try {
       await this.ch?.close();
     } catch {

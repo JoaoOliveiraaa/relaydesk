@@ -16,7 +16,7 @@ import { corsOriginsFromEnv } from '@relaydesk/config';
 import type { RelayDeskEnv } from '@relaydesk/config';
 import { AppModule } from './app.module';
 
-registerRelaydeskOtel({ serviceName: 'auth-service', prisma: true });
+registerRelaydeskOtel({ serviceName: 'auth-service', prisma: true, redisIoredis: true });
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });

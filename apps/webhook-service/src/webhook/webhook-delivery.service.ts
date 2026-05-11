@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { WebhookEngineDeliveryStatus, prisma } from '@relaydesk/database';
 import type { ConsumeHandlerContext } from '@relaydesk/queue';
 import type { ConsumeMessage } from 'amqplib';
+import { CircuitBreaker, simWebhookForcedTimeoutMs } from '@relaydesk/common';
+import { startActiveSpan } from '@relaydesk/otel';
 import { HmacService } from './hmac.service';
 import { WebhookMetricsService } from './webhook-metrics.service';
 
@@ -10,22 +12,26 @@ export interface WebhookDeliveryJob {
   tenantId: string;
 }
 
-const HTTP_TIMEOUT_MS = 30_000;
-
 /**
  * Core delivery engine — handles a single WebhookEngineDelivery record.
  *
  * Responsibilities:
  *  1. Load delivery + subscription from DB (single source of truth)
  *  2. Build signed headers (HMAC SHA-256)
- *  3. HTTP POST with timeout
+ *  3. HTTP POST with timeout + circuit breaker
  *  4. Persist result (status, latency, response snippet, httpStatus)
  *  5. AuditLog entry
- *  6. Prometheus metrics + structured logging
+ *  6. Prometheus metrics + OpenTelemetry spans
  */
 @Injectable()
 export class WebhookDeliveryService {
   private readonly logger = new Logger(WebhookDeliveryService.name);
+  private readonly httpBreaker = new CircuitBreaker({
+    name: 'webhook-endpoint',
+    failureThreshold: 10,
+    openDurationMs: 30_000,
+    successThreshold: 2,
+  });
 
   constructor(
     private readonly hmac: HmacService,
@@ -80,8 +86,12 @@ export class WebhookDeliveryService {
     );
 
     const retryPolicy = this.extractRetryPolicy(delivery.subscription.metadata);
+    const simMs = simWebhookForcedTimeoutMs();
+    const timeoutMs =
+      simMs > 0 ? Math.min(retryPolicy.timeoutSeconds * 1000, simMs) : retryPolicy.timeoutSeconds * 1000;
+
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), retryPolicy.timeoutSeconds * 1000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     const startMs = Date.now();
     let httpStatus: number | undefined;
     let responseSnippet: string | undefined;
@@ -89,30 +99,40 @@ export class WebhookDeliveryService {
     let success = false;
 
     try {
-      const resp = await fetch(delivery.subscription.url, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'user-agent': 'RelayDesk-Webhook/1.0',
-          ...signatureHeaders,
-        },
-        body,
-        signal: controller.signal,
+      await startActiveSpan('relaydesk.webhook', 'webhook.delivery.http', {}, async (span) => {
+        span.setAttribute('relaydesk.tenant_id', tenantId);
+        span.setAttribute('relaydesk.webhook_delivery_id', deliveryId);
+        span.setAttribute('relaydesk.event_type', delivery.eventType);
+        span.setAttribute('http.url', delivery.subscription.url);
+        if (delivery.correlationId) span.setAttribute('relaydesk.correlation_id', delivery.correlationId);
+
+        await this.httpBreaker.execute(async () => {
+          const resp = await fetch(delivery.subscription.url, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              'user-agent': 'RelayDesk-Webhook/1.0',
+              ...signatureHeaders,
+            },
+            body,
+            signal: controller.signal,
+          });
+
+          httpStatus = resp.status;
+          const text = await resp.text().catch(() => '');
+          responseSnippet = text.slice(0, 1024);
+          success = resp.status >= 200 && resp.status < 300;
+          span.setAttribute('http.status_code', resp.status);
+          if (!success) {
+            lastError = `HTTP ${resp.status}: ${responseSnippet.slice(0, 256)}`;
+          }
+        });
       });
-
-      clearTimeout(timeout);
-      httpStatus = resp.status;
-      const text = await resp.text().catch(() => '');
-      responseSnippet = text.slice(0, 1024);
-      success = resp.status >= 200 && resp.status < 300;
-
-      if (!success) {
-        lastError = `HTTP ${resp.status}: ${responseSnippet.slice(0, 256)}`;
-      }
     } catch (err) {
-      clearTimeout(timeout);
       lastError = err instanceof Error ? err.message : String(err);
       this.logger.warn(`Delivery ${deliveryId} HTTP error: ${lastError}`);
+    } finally {
+      clearTimeout(timeout);
     }
 
     const latencyMs = Date.now() - startMs;

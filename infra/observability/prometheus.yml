@@ -1,0 +1,24 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: relaydesk-api-gateway
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:4010"]
+        labels:
+          service: api-gateway
+  - job_name: relaydesk-messaging
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:4012"]
+        labels:
+          service: messaging-service
+  - job_name: relaydesk-webhook
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:4014"]
+        labels:
+          service: webhook-service
+  # RabbitMQ: activar plugin `rabbitmq_prometheus` ou exporter dedicado e adicionar scrape aqui.

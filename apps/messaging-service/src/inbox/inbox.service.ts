@@ -104,7 +104,15 @@ export class InboxService {
         conversationId,
         messageId: message.id,
       },
-      message.id,
+      {
+        messageId: message.id,
+        correlationId: correlationId ?? message.id,
+        relaydesk: {
+          tenantId: user.tenantId,
+          conversationId,
+          eventId: message.id,
+        },
+      },
     );
 
     const envelope: RealtimeOutboundPayload = {
@@ -131,7 +139,15 @@ export class InboxService {
         },
       },
     };
-    await this.amqp.publish(RELAY_EVENT_ROUTING.REALTIME_OUTBOUND, envelope, message.id);
+    await this.amqp.publish(RELAY_EVENT_ROUTING.REALTIME_OUTBOUND, envelope, {
+      messageId: message.id,
+      correlationId: correlationId ?? message.id,
+      relaydesk: {
+        tenantId: user.tenantId,
+        conversationId,
+        eventId: message.id,
+      },
+    });
 
     return message;
   }

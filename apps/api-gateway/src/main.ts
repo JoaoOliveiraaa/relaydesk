@@ -18,7 +18,7 @@ import { corsOriginsFromEnv } from '@relaydesk/config';
 import { setupRelaydeskSwagger } from '@relaydesk/platform-nest';
 import { AppModule } from './app.module';
 
-registerRelaydeskOtel({ serviceName: 'api-gateway', prisma: false });
+registerRelaydeskOtel({ serviceName: 'api-gateway', prisma: false, redisIoredis: true });
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });

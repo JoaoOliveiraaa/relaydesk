@@ -1,10 +1,13 @@
 import type { Instrumentation } from '@opentelemetry/instrumentation';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis';
 import { Resource } from '@opentelemetry/resources';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { ATTR_SERVICE_NAME } from '@opentelemetry/semantic-conventions';
 import { PrismaInstrumentation } from '@prisma/instrumentation';
+
+export * from './tracing';
 
 export interface RelaydeskOtelOptions {
   serviceName: string;
@@ -14,12 +17,14 @@ export interface RelaydeskOtelOptions {
   disabled?: boolean;
   /** Inclui instrumentação Prisma (serviços com @prisma/client). */
   prisma?: boolean;
+  /** Spans para comandos ioredis (presença, rate limit, idempotência). */
+  redisIoredis?: boolean;
 }
 
 let sdkSingleton: NodeSDK | undefined;
 
 /**
- * Inicializa OpenTelemetry (HTTP/Express, DNS, net, etc.) + OTLP para Jaeger/Tempo.
+ * Inicializa OpenTelemetry (HTTP/Express, DNS, net, Axios/http, etc.) + OTLP para Jaeger/Tempo.
  * Chamar o mais cedo possível no bootstrap (antes de NestFactory.create).
  */
 export function registerRelaydeskOtel(opts: RelaydeskOtelOptions): void {
@@ -44,12 +49,16 @@ export function registerRelaydeskOtel(opts: RelaydeskOtelOptions): void {
   if (opts.prisma === true) {
     instrumentations.push(new PrismaInstrumentation());
   }
+  if (opts.redisIoredis === true) {
+    instrumentations.push(new IORedisInstrumentation());
+  }
 
   const exporter = new OTLPTraceExporter({ url: tracesEndpoint });
 
   const sdk = new NodeSDK({
     resource: new Resource({
       [ATTR_SERVICE_NAME]: opts.serviceName,
+      'deployment.environment': process.env.NODE_ENV ?? 'development',
     }),
     traceExporter: exporter,
     instrumentations,

@@ -1,0 +1,88 @@
+# Exemplo stateless para messaging-service. Ajustar imagem, secrets e URLs.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: messaging-service-env
+data:
+  NODE_ENV: "production"
+  PORT_MESSAGING_SERVICE: "4012"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo-distributor.observability.svc:4318/v1/traces"
+  RABBITMQ_MANAGEMENT_URL: "http://rabbitmq.management.svc:15672"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messaging-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: messaging-service
+  template:
+    metadata:
+      labels:
+        app: messaging-service
+    spec:
+      terminationGracePeriodSeconds: 45
+      containers:
+        - name: messaging-service
+          image: your-registry/relaydesk-messaging:latest
+          ports:
+            - containerPort: 4012
+          envFrom:
+            - configMapRef:
+                name: messaging-service-env
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: relaydesk-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: relaydesk-secrets
+                  key: REDIS_URL
+            - name: RABBITMQ_URL
+              valueFrom:
+                secretKeyRef:
+                  name: relaydesk-secrets
+                  key: RABBITMQ_URL
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: relaydesk-secrets
+                  key: JWT_SECRET
+            - name: INTERNAL_SERVICE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: relaydesk-secrets
+                  key: INTERNAL_SERVICE_TOKEN
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 4012
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 4012
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: messaging-service
+spec:
+  selector:
+    app: messaging-service
+  ports:
+    - port: 4012
+      targetPort: 4012

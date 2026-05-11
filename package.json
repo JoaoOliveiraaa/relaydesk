@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "dev:infra": "docker compose -f docker-compose.yml up -d postgres redis rabbitmq",
+    "dev:obs": "docker compose -f docker-compose.observability.yml up -d",
+    "test:integration": "pnpm --filter @relaydesk/integration-tests test",
     "dev:services": "turbo run dev --filter=./apps/*",
     "build:all": "turbo run build",
     "db:generate": "pnpm --filter @relaydesk/database exec prisma generate",

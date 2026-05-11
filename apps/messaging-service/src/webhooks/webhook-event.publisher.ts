@@ -80,7 +80,15 @@ export class WebhookEventPublisher {
           await this.amqp.publish(
             RELAY_EVENT_ROUTING.WEBHOOK_DELIVERY,
             { deliveryId: delivery.id, tenantId },
-            delivery.id,
+            {
+              messageId: delivery.id,
+              correlationId: correlationId ?? eventId,
+              relaydesk: {
+                tenantId,
+                webhookDeliveryId: delivery.id,
+                eventId,
+              },
+            },
           );
         } catch (err) {
           this.logger.error(`Failed to enqueue webhook delivery for sub ${sub.id}: ${String(err)}`);

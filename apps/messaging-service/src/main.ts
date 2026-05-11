@@ -16,7 +16,7 @@ import { corsOriginsFromEnv } from '@relaydesk/config';
 import { setupRelaydeskSwagger } from '@relaydesk/platform-nest';
 import { AppModule } from './app.module';
 
-registerRelaydeskOtel({ serviceName: 'messaging-service', prisma: true });
+registerRelaydeskOtel({ serviceName: 'messaging-service', prisma: true, redisIoredis: true });
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });

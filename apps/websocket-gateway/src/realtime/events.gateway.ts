@@ -1,4 +1,5 @@
 import { Inject, Logger } from '@nestjs/common';
+import { startActiveSpan } from '@relaydesk/otel';
 import { RedisKeys, type Redis } from '@relaydesk/redis';
 import type { RealtimeOutboundPayload } from '@relaydesk/shared-types';
 import {
@@ -37,19 +38,23 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket): Promise<void> {
     try {
-      const token =
-        (client.handshake.auth?.token as string | undefined) ??
-        (client.handshake.query?.token as string | undefined);
-      if (!token) {
-        client.disconnect(true);
-        return;
-      }
-      const user = this.wsJwt.verify(token);
-      (client.data as { user: WsUser }).user = user;
-      await client.join(this.tenantRoom(user.tenantId));
-      await this.redis.set(RedisKeys.presence(user.tenantId, user.sub), '1', 'EX', 120);
-      this.server.to(this.tenantRoom(user.tenantId)).emit('presence:update', { userId: user.sub, online: true });
-      this.logger.log(`WS conectado user=${user.sub} tenant=${user.tenantId}`);
+      await startActiveSpan('relaydesk.websocket', 'websocket.connect', {}, async (span) => {
+        const token =
+          (client.handshake.auth?.token as string | undefined) ??
+          (client.handshake.query?.token as string | undefined);
+        if (!token) {
+          client.disconnect(true);
+          return;
+        }
+        const user = this.wsJwt.verify(token);
+        span.setAttribute('relaydesk.tenant_id', user.tenantId);
+        span.setAttribute('relaydesk.user_id', user.sub);
+        (client.data as { user: WsUser }).user = user;
+        await client.join(this.tenantRoom(user.tenantId));
+        await this.redis.set(RedisKeys.presence(user.tenantId, user.sub), '1', 'EX', 120);
+        this.server.to(this.tenantRoom(user.tenantId)).emit('presence:update', { userId: user.sub, online: true });
+        this.logger.log(`WS conectado user=${user.sub} tenant=${user.tenantId}`);
+      });
     } catch {
       client.disconnect(true);
     }
@@ -58,8 +63,12 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   async handleDisconnect(client: Socket): Promise<void> {
     const user = (client.data as { user?: WsUser }).user;
     if (!user) return;
-    await this.redis.del(RedisKeys.presence(user.tenantId, user.sub));
-    this.server.to(this.tenantRoom(user.tenantId)).emit('presence:update', { userId: user.sub, online: false });
+    await startActiveSpan('relaydesk.websocket', 'websocket.disconnect', {}, async (span) => {
+      span.setAttribute('relaydesk.tenant_id', user.tenantId);
+      span.setAttribute('relaydesk.user_id', user.sub);
+      await this.redis.del(RedisKeys.presence(user.tenantId, user.sub));
+      this.server.to(this.tenantRoom(user.tenantId)).emit('presence:update', { userId: user.sub, online: false });
+    });
   }
 
   /** Fan-out a partir do consumidor RabbitMQ (`RealtimeBridgeService`). */
@@ -68,8 +77,16 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       this.logger.warn('Socket server ainda não inicializado');
       return;
     }
-    this.server.to(this.tenantRoom(envelope.tenantId)).emit('relay:event', envelope);
-    this.server.to(this.conversationRoom(envelope.conversationId)).emit('relay:event', envelope);
+    void startActiveSpan('relaydesk.websocket', 'relay:event', {}, async (span) => {
+      span.setAttribute('relaydesk.tenant_id', envelope.tenantId);
+      span.setAttribute('relaydesk.conversation_id', envelope.conversationId);
+      span.setAttribute('relaydesk.event_type', envelope.type);
+      if (envelope.correlationId) span.setAttribute('relaydesk.correlation_id', envelope.correlationId);
+      this.server.to(this.tenantRoom(envelope.tenantId)).emit('relay:event', envelope);
+      this.server.to(this.conversationRoom(envelope.conversationId)).emit('relay:event', envelope);
+    }).catch((err) => {
+      this.logger.warn(`relay:event span: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }
 
   @SubscribeMessage('conversation:join')
@@ -77,14 +94,19 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @ConnectedSocket() client: Socket,
     @MessageBody() body: { conversationId: string },
   ): Promise<{ ok: boolean; error?: string }> {
-    const user = (client.data as { user?: WsUser }).user;
-    if (!user || !body?.conversationId) return { ok: false, error: 'unauthorized' };
-    const allowed = await this.wsRate.allowConversationJoin(user.sub);
-    if (!allowed) return { ok: false, error: 'rate_limited' };
-    const ok = await this.conversationTenant.belongsToTenant(body.conversationId, user.tenantId);
-    if (!ok) return { ok: false, error: 'forbidden' };
-    await client.join(this.conversationRoom(body.conversationId));
-    return { ok: true };
+    return startActiveSpan('relaydesk.websocket', 'conversation:join', {}, async (span) => {
+      const user = (client.data as { user?: WsUser }).user;
+      if (!user || !body?.conversationId) return { ok: false, error: 'unauthorized' };
+      span.setAttribute('relaydesk.tenant_id', user.tenantId);
+      span.setAttribute('relaydesk.conversation_id', body.conversationId);
+      span.setAttribute('relaydesk.user_id', user.sub);
+      const allowed = await this.wsRate.allowConversationJoin(user.sub);
+      if (!allowed) return { ok: false, error: 'rate_limited' };
+      const ok = await this.conversationTenant.belongsToTenant(body.conversationId, user.tenantId);
+      if (!ok) return { ok: false, error: 'forbidden' };
+      await client.join(this.conversationRoom(body.conversationId));
+      return { ok: true };
+    });
   }
 
   @SubscribeMessage('conversation:leave')

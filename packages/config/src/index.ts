@@ -5,6 +5,12 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1).optional(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   RABBITMQ_URL: z.string().default('amqp://relaydesk:relaydesk@localhost:5672'),
+  /** Opcional: Management API (`http://127.0.0.1:15672`) para readiness de filas. */
+  RABBITMQ_MANAGEMENT_URL: z.string().url().optional(),
+  /** Chaos-lite: simular falha de Redis no readiness. */
+  RELAYDESK_SIM_REDIS_DOWN: z.string().optional(),
+  RELAYDESK_SIM_RABBIT_DOWN: z.string().optional(),
+  RELAYDESK_SIM_WEBHOOK_TIMEOUT_MS: z.string().optional(),
   JWT_SECRET: z.string().min(16).default('relaydesk-dev-secret-change-me'),
   JWT_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),

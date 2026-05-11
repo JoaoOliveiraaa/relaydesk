@@ -9,3 +9,5 @@ export * from './http/response-envelope.interceptor';
 export * from './http/client-ip';
 export * from './jwt/unsafe-jwt-payload';
 export * from './validation/relay-validation.pipe';
+export * from './resilience/circuit-breaker';
+export * from './resilience/failure-simulation';

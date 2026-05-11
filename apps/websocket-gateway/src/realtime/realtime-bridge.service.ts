@@ -7,6 +7,7 @@ import {
   createAmqpConnection,
   QUEUES,
   type AmqpConnection,
+  type AmqpConsumerHandle,
   type ConfirmChannel,
 } from '@relaydesk/queue';
 import type { RealtimeOutboundPayload } from '@relaydesk/shared-types';
@@ -23,6 +24,7 @@ export class RealtimeBridgeService implements OnApplicationBootstrap, OnModuleDe
   private readonly logger = new Logger(RealtimeBridgeService.name);
   private conn!: AmqpConnection;
   private ch!: ConfirmChannel;
+  private consumer?: AmqpConsumerHandle;
 
   constructor(
     private readonly config: ConfigService,
@@ -34,7 +36,7 @@ export class RealtimeBridgeService implements OnApplicationBootstrap, OnModuleDe
     this.conn = await createAmqpConnection(env.RABBITMQ_URL);
     this.ch = await this.conn.createConfirmChannel();
     await assertRelayTopology(this.ch);
-    await consumeWithRetry(
+    this.consumer = await consumeWithRetry(
       this.ch,
       QUEUES.realtimeOutbound,
       async (payload) => {
@@ -50,6 +52,11 @@ export class RealtimeBridgeService implements OnApplicationBootstrap, OnModuleDe
   }
 
   async onModuleDestroy(): Promise<void> {
+    try {
+      await this.consumer?.cancel();
+    } catch {
+      /* ignore */
+    }
     try {
       await this.ch?.close();
     } catch {

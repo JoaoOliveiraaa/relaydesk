@@ -43,6 +43,64 @@ Plataforma **SaaS multi-tenant** para operações de suporte e inbox em tempo re
 | `packages/otel` | Bootstrap OpenTelemetry → OTLP (Jaeger / Tempo) |
 | `apps/webhook-service` | Webhook delivery engine — HMAC, retries, DLQ, Prometheus |
 | `packages/sdk` | Client TS: paths, typings, `verifyWebhookSignature`, `constructWebhookEvent` |
+| `packages/integration-tests` | Vitest + Testcontainers (`RELAYDESK_RUN_INTEGRATION=1`) |
+| `infra/observability` | Prometheus, Grafana, Loki, Tempo, Promtail (compose dedicado) |
+| `deploy/kubernetes` | Exemplo de Deployment/Service com probes e `terminationGracePeriodSeconds` |
+
+---
+
+## Confiabilidade distribuída & observabilidade (nível produção)
+
+### Tracing OpenTelemetry (ponta-a-ponta)
+
+- **SDK** (`@relaydesk/otel`): HTTP/Express (inclui Axios via stack Node), **Prisma**, **ioredis** (onde activado), export OTLP HTTP → **Tempo** / Jaeger.
+- **RabbitMQ** (`@relaydesk/queue`): `amqp.publish` e `amqp.consume` com spans; **propagação W3C `traceparent`** injectada nos headers AMQP e extraída no consume; headers semânticos `x-relaydesk-tenant-id`, `x-relaydesk-conversation-id`, `x-relaydesk-event-id`, `x-relaydesk-webhook-delivery-id` espelhados em atributos de span (`relaydesk.*`).
+- **WebSocket**: spans `websocket.connect`, `websocket.disconnect`, `conversation:join`, `relay:event` (tenant, conversa, tipo, correlação).
+- **Webhooks**: spans `webhook.delivery.http` com `relaydesk.webhook_delivery_id`, `relaydesk.event_type`, `http.status_code`.
+
+Variável típica (stack local Grafana abaixo):
+
+`OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces`
+
+### Stack Grafana (Docker)
+
+```bash
+pnpm dev:obs
+```
+
+- **Grafana**: `http://localhost:3001` (user `relaydesk` / pass `relaydesk`)
+- **Prometheus**: `http://localhost:9090`
+- **Loki**: `http://localhost:3100`
+- **Tempo** (OTLP HTTP): `http://localhost:4318`
+- **Promtail** (logs de contentores Docker): `docker compose -f docker-compose.observability.yml --profile logs up -d` (Linux recomendado; requer socket Docker)
+
+No Linux, acrescente `extra_hosts: ["host.docker.internal:host-gateway"]` ao serviço **prometheus** se `host.docker.internal` não existir por defeito.
+
+Dashboard de exemplo: **RelayDesk · Overview** (AMQP publish rate/latency, webhook latency/DLQ).
+
+### Filas & readiness
+
+- Histograma **`relaydesk_amqp_publish_duration_seconds`** (messaging) + contador existente.
+- **`GET /health/ready`** (messaging): Redis, Postgres, opcional **RabbitMQ Management API** (`RABBITMQ_MANAGEMENT_URL`, ex. `http://relaydesk:relaydesk@127.0.0.1:15672`) — devolve snapshot `rabbitQueues` com profundidade por fila.
+- **Graceful shutdown**: consumidores AMQP cancelam a subscrição (`channel.cancel`) antes de fechar o canal (draining de novas mensagens).
+
+### Circuit breakers & caos controlado
+
+- **`CircuitBreaker`** (`@relaydesk/common`): membership HTTP no WebSocket gateway; publish AMQP no messaging; `fetch` HTTP no motor de webhooks.
+- **Simulação** (`RELAYDESK_SIM_REDIS_DOWN`, `RELAYDESK_SIM_RABBIT_DOWN`, `RELAYDESK_SIM_WEBHOOK_TIMEOUT_MS`) para validar readiness, retries e timeouts.
+
+### Kubernetes & imagens
+
+- Exemplo: `deploy/kubernetes/messaging-service.example.yaml` — `livenessProbe` `/health/live`, `readinessProbe` `/health/ready`, `preStop` sleep, réplicas stateless.
+- Dockerfile multi-stage: `apps/messaging-service/Dockerfile` (build com contexto na raiz do monorepo).
+
+### Testes de integração
+
+```bash
+RELAYDESK_RUN_INTEGRATION=1 pnpm test:integration
+```
+
+Smoke **PostgreSQL** via Testcontainers; base para estender a Redis, RabbitMQ e fluxos e2e.
 
 ---
 
@@ -142,13 +200,14 @@ Instrumentação: HTTP/Node + **Prisma** (auth & messaging com `prisma: true`).
 ```bash
 pnpm install
 pnpm dev:infra          # Postgres + Redis + RabbitMQ
+pnpm dev:obs            # opcional: Prometheus + Grafana + Loki + Tempo (+ Promtail com --profile logs)
 pnpm db:migrate:deploy  # aplicar migrações
 pnpm db:seed            # tenant demo (ver output do seed)
 pnpm dev:services       # serviços Nest em watch
 pnpm dev                # Next.js (outro terminal)
 ```
 
-Copiar `.env.example` → `.env` na raiz e ajustar URLs/portas.
+Copiar `.env.example` → `.env` na raiz e ajustar URLs/portas. Para **readiness de filas** no messaging, definir `RABBITMQ_MANAGEMENT_URL` (Management API). Para **tracing** local com o stack Grafana: `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces`.
 
 ---
 
@@ -297,7 +356,7 @@ Use `["*"]` as `eventTypes` to subscribe to all events.
 
 1. **RBAC avançado** — permissões por recurso, policies estilo Slack/GitHub, guards WebSocket.
 2. **Audit pipeline** — escrita assíncrona a partir de eventos + UI de pesquisa por tenant.
-3. **Métricas avançadas** — lag de filas, DLQ size, ligação a dashboards Grafana.
+3. **Métricas avançadas** — profundidade de fila via Management API + dashboards Grafana (base já provisionada); exporters Rabbit dedicados em produção.
 4. **SDK gerado** — a partir de `openapi.json` + publicação npm.
 5. **Webhook filtering** — JSONPath / CEL expressions para filtrar eventos antes da entrega.
 

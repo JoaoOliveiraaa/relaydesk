@@ -9,6 +9,7 @@
     "dev": "tsc -p tsconfig.json --watch"
   },
   "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
     "@relaydesk/shared-types": "workspace:*",
     "amqplib": "^0.10.8"
   },

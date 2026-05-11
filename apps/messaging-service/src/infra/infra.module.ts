@@ -2,7 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import type { RelayDeskEnv } from '@relaydesk/config';
 import { createRedis, type Redis } from '@relaydesk/redis';
-import { makeCounterProvider } from '@willsoto/nestjs-prometheus';
+import { makeCounterProvider, makeHistogramProvider } from '@willsoto/nestjs-prometheus';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { AmqpPublisher } from './amqp.publisher';
 
@@ -23,6 +23,12 @@ export const REDIS = 'REDIS';
       name: 'relaydesk_amqp_published_total',
       help: 'Total de publicações AMQP confirmadas (messaging-service)',
       labelNames: ['routing_key'],
+    }),
+    makeHistogramProvider({
+      name: 'relaydesk_amqp_publish_duration_seconds',
+      help: 'Latência de publish AMQP confirmado (segundos)',
+      labelNames: ['routing_key'],
+      buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
     }),
     {
       provide: REDIS,

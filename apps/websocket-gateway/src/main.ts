@@ -1,14 +1,14 @@
 import 'reflect-metadata';
 import { registerRelaydeskOtel } from '@relaydesk/otel';
 import { NestFactory } from '@nestjs/core';
-
-registerRelaydeskOtel({ serviceName: 'websocket-gateway', prisma: false });
 import { ConfigService } from '@nestjs/config';
 import { createRelayPinoLogger, RelayLogger } from '@relaydesk/common';
 import type { RelayDeskEnv } from '@relaydesk/config';
 import { corsOriginsFromEnv } from '@relaydesk/config';
 import { AppModule } from './app.module';
 import { RedisIoAdapter } from './realtime/redis-io.adapter';
+
+registerRelaydeskOtel({ serviceName: 'websocket-gateway', prisma: false, redisIoredis: true });
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });

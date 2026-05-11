@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@opentelemetry/instrumentation": "^0.52.0",
+    "@opentelemetry/instrumentation-ioredis": "^0.47.0",
     "@opentelemetry/auto-instrumentations-node": "^0.52.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.52.0",
     "@opentelemetry/resources": "^1.30.0",

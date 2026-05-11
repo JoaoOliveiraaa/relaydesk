@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { registerRelaydeskOtel } from '@relaydesk/otel';
 import { NestFactory } from '@nestjs/core';
 import {
   AllExceptionsFilter,
@@ -7,8 +8,11 @@ import {
 } from '@relaydesk/common';
 import { AppModule } from './app.module';
 
+registerRelaydeskOtel({ serviceName: 'webhook-service', prisma: true, redisIoredis: false });
+
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  app.enableShutdownHooks();
   app.useLogger(new RelayLogger('webhook-service'));
   app.useGlobalFilters(new AllExceptionsFilter());
   app.useGlobalInterceptors(new LoggingInterceptor());

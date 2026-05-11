@@ -141,7 +141,16 @@ export class MessagingService {
       },
     };
 
-    await this.amqp.publish(RELAY_EVENT_ROUTING.MESSAGE_RECEIVED, payload, dto.id);
+    const rd = {
+      tenantId: dto.tenantId,
+      conversationId: conversation.id,
+      eventId: dto.id,
+    };
+    await this.amqp.publish(RELAY_EVENT_ROUTING.MESSAGE_RECEIVED, payload, {
+      messageId: dto.id,
+      correlationId: correlationId ?? dto.id,
+      relaydesk: rd,
+    });
     await this.amqp.publish(
       RELAY_EVENT_ROUTING.MESSAGE_PROCESSED,
       {
@@ -149,7 +158,11 @@ export class MessagingService {
         conversationId: conversation.id,
         messageId: message.id,
       },
-      `${dto.id}:processed`,
+      {
+        messageId: `${dto.id}:processed`,
+        correlationId: correlationId ?? `${dto.id}:processed`,
+        relaydesk: { ...rd, eventId: `${dto.id}:processed` },
+      },
     );
     await this.amqp.publish(
       RELAY_EVENT_ROUTING.AI_PROCESSING,
@@ -158,7 +171,11 @@ export class MessagingService {
         conversationId: conversation.id,
         messageId: message.id,
       },
-      `${dto.id}:ai`,
+      {
+        messageId: `${dto.id}:ai`,
+        correlationId: correlationId ?? `${dto.id}:ai`,
+        relaydesk: { ...rd, eventId: `${dto.id}:ai` },
+      },
     );
 
     const refreshed = await prisma.conversation.findUniqueOrThrow({
@@ -189,7 +206,15 @@ export class MessagingService {
         },
       },
     };
-    await this.amqp.publish(RELAY_EVENT_ROUTING.REALTIME_OUTBOUND, envelope, message.id);
+    await this.amqp.publish(RELAY_EVENT_ROUTING.REALTIME_OUTBOUND, envelope, {
+      messageId: message.id,
+      correlationId: correlationId ?? message.id,
+      relaydesk: {
+        tenantId: dto.tenantId,
+        conversationId: conversation.id,
+        eventId: message.id,
+      },
+    });
 
     // Fire webhook events to all matching subscriptions (non-blocking)
     this.webhookPublisher

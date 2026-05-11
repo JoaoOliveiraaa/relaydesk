@@ -7,6 +7,7 @@ import {
   createAmqpConnection,
   QUEUES,
   type AmqpConnection,
+  type AmqpConsumerHandle,
   type ConfirmChannel,
 } from '@relaydesk/queue';
 import { WebhookDeliveryService, type WebhookDeliveryJob } from './webhook-delivery.service';
@@ -22,6 +23,7 @@ export class WebhookConsumerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WebhookConsumerService.name);
   private conn!: AmqpConnection;
   private ch!: ConfirmChannel;
+  private consumer?: AmqpConsumerHandle;
 
   constructor(
     private readonly config: ConfigService,
@@ -34,7 +36,7 @@ export class WebhookConsumerService implements OnModuleInit, OnModuleDestroy {
     this.ch = await this.conn.createConfirmChannel();
     await assertRelayTopology(this.ch);
 
-    await consumeWithRetry(
+    this.consumer = await consumeWithRetry(
       this.ch,
       QUEUES.webhookDelivery,
       async (payload, raw, ctx) => {
@@ -53,7 +55,20 @@ export class WebhookConsumerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy(): Promise<void> {
-    try { await this.ch?.close(); } catch { /* ignore */ }
-    try { await this.conn?.close(); } catch { /* ignore */ }
+    try {
+      await this.consumer?.cancel();
+    } catch {
+      /* ignore */
+    }
+    try {
+      await this.ch?.close();
+    } catch {
+      /* ignore */
+    }
+    try {
+      await this.conn?.close();
+    } catch {
+      /* ignore */
+    }
   }
 }
