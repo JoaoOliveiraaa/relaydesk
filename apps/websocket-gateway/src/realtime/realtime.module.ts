@@ -1,14 +1,22 @@
+import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule, type JwtModuleOptions } from '@nestjs/jwt';
 import type { RelayDeskEnv } from '@relaydesk/config';
+import { createRedis, type Redis } from '@relaydesk/redis';
 import { ConversationTenantService } from './conversation-tenant.service';
 import { EventsGateway } from './events.gateway';
+import { REALTIME_REDIS } from './realtime-redis.token';
 import { RealtimeBridgeService } from './realtime-bridge.service';
+import { WsEventRateLimiterService } from './ws-event-rate-limiter.service';
 import { WsJwtService } from './ws-jwt.service';
 
 @Module({
   imports: [
+    HttpModule.register({
+      timeout: 8000,
+      maxRedirects: 0,
+    }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -21,6 +29,20 @@ import { WsJwtService } from './ws-jwt.service';
       },
     }),
   ],
-  providers: [EventsGateway, WsJwtService, ConversationTenantService, RealtimeBridgeService],
+  providers: [
+    {
+      provide: REALTIME_REDIS,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService): Redis => {
+        const env = config.get<RelayDeskEnv>('relayEnv')!;
+        return createRedis(env.REDIS_URL, env.REDIS_KEY_PREFIX);
+      },
+    },
+    EventsGateway,
+    WsJwtService,
+    ConversationTenantService,
+    RealtimeBridgeService,
+    WsEventRateLimiterService,
+  ],
 })
 export class RealtimeModule {}

@@ -4,6 +4,7 @@ import { loadEnv } from '@relaydesk/config';
 import { HealthModule } from './health/health.module';
 import { InfraModule } from './infra/infra.module';
 import { InboxModule } from './inbox/inbox.module';
+import { InternalModule } from './internal/internal.module';
 import { MessagingModule } from './messaging/messaging.module';
 
 @Module({
@@ -16,6 +17,7 @@ import { MessagingModule } from './messaging/messaging.module';
     HealthModule,
     MessagingModule,
     InboxModule,
+    InternalModule,
   ],
 })
 export class AppModule {}

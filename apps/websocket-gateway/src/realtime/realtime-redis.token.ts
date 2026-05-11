@@ -1,0 +1,1 @@
+export const REALTIME_REDIS = 'REALTIME_REDIS';

@@ -1,3 +1,6 @@
+// Schema versionado com `prisma/migrations`. Fluxo recomendado: migrate dev (local) / migrate deploy (CI/staging/prod).
+// `prisma db push` evitar em ambientes partilhados — sem histórico nem rollback alinhado ao Prisma Migrate.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -109,6 +112,21 @@ enum QueueJobType {
   automation
 }
 
+// ——— Audit & webhook engine (enterprise) ———
+
+enum WebhookSubscriptionState {
+  active
+  paused
+}
+
+enum WebhookEngineDeliveryStatus {
+  pending
+  sending
+  delivered
+  failed
+  dead
+}
+
 model Tenant {
   id        String    @id @default(cuid())
   name      String
@@ -126,6 +144,9 @@ model Tenant {
   webhookEvents           WebhookEvent[]
   automations             Automation[]
   queueJobs               QueueJob[]
+  auditLogs               AuditLog[]
+  webhookSubscriptions    WebhookSubscription[]
+  webhookEngineDeliveries WebhookEngineDelivery[]
 
   @@index([deletedAt])
 }
@@ -303,4 +324,70 @@ model QueueJob {
 
   @@index([status, type])
   @@index([tenantId])
+}
+
+model AuditLog {
+  id              String   @id @default(cuid())
+  tenantId        String
+  actorUserId     String?
+  actorService    String?
+  action          String
+  entityType      String?
+  entityId        String?
+  ip              String?  @db.VarChar(64)
+  userAgent       String?  @db.VarChar(512)
+  metadata        Json?
+  correlationId   String?  @db.VarChar(128)
+  createdAt       DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([correlationId])
+  @@index([tenantId, action, createdAt(sort: Desc)])
+}
+
+model WebhookSubscription {
+  id             String                 @id @default(cuid())
+  tenantId       String
+  url            String                 @db.Text
+  description    String?                @db.VarChar(500)
+  /// Segredo HMAC para `Relay-Signature` (armazenar cifrado em produção — ver runbook).
+  signingSecret  String                 @db.Text
+  eventTypes     Json
+  state          WebhookSubscriptionState @default(active)
+  metadata       Json?
+  deletedAt      DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  tenant    Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deliveries WebhookEngineDelivery[]
+
+  @@index([tenantId, state, deletedAt])
+}
+
+model WebhookEngineDelivery {
+  id               String                     @id @default(cuid())
+  tenantId         String
+  subscriptionId   String
+  eventType        String
+  idempotencyKey   String?                  @db.VarChar(256)
+  payload          Json
+  status           WebhookEngineDeliveryStatus @default(pending)
+  attempts         Int                        @default(0)
+  nextAttemptAt    DateTime?
+  httpStatus       Int?
+  responseSnippet  String?                  @db.VarChar(1024)
+  lastError        String?                  @db.Text
+  correlationId    String?                  @db.VarChar(128)
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  subscription   WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriptionId, idempotencyKey])
+  @@index([tenantId, status, createdAt(sort: Desc)])
+  @@index([subscriptionId, status])
 }

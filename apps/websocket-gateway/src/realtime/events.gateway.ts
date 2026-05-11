@@ -1,7 +1,5 @@
-import { Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import type { RelayDeskEnv } from '@relaydesk/config';
-import { createRedis, RedisKeys } from '@relaydesk/redis';
+import { Inject, Logger } from '@nestjs/common';
+import { RedisKeys, type Redis } from '@relaydesk/redis';
 import type { RealtimeOutboundPayload } from '@relaydesk/shared-types';
 import {
   ConnectedSocket,
@@ -14,6 +12,8 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import { ConversationTenantService } from './conversation-tenant.service';
+import { REALTIME_REDIS } from './realtime-redis.token';
+import { WsEventRateLimiterService } from './ws-event-rate-limiter.service';
 import { WsJwtService, type WsUser } from './ws-jwt.service';
 
 @WebSocketGateway({
@@ -27,16 +27,13 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   server!: Server;
 
   private readonly logger = new Logger(EventsGateway.name);
-  private readonly redis: ReturnType<typeof createRedis>;
 
   constructor(
     private readonly wsJwt: WsJwtService,
-    private readonly config: ConfigService,
     private readonly conversationTenant: ConversationTenantService,
-  ) {
-    const env = this.config.get<RelayDeskEnv>('relayEnv')!;
-    this.redis = createRedis(env.REDIS_URL, env.REDIS_KEY_PREFIX);
-  }
+    private readonly wsRate: WsEventRateLimiterService,
+    @Inject(REALTIME_REDIS) private readonly redis: Redis,
+  ) {}
 
   async handleConnection(client: Socket): Promise<void> {
     try {
@@ -82,6 +79,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ): Promise<{ ok: boolean; error?: string }> {
     const user = (client.data as { user?: WsUser }).user;
     if (!user || !body?.conversationId) return { ok: false, error: 'unauthorized' };
+    const allowed = await this.wsRate.allowConversationJoin(user.sub);
+    if (!allowed) return { ok: false, error: 'rate_limited' };
     const ok = await this.conversationTenant.belongsToTenant(body.conversationId, user.tenantId);
     if (!ok) return { ok: false, error: 'forbidden' };
     await client.join(this.conversationRoom(body.conversationId));
@@ -109,6 +108,8 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ): Promise<void> {
     const user = (client.data as { user?: WsUser }).user;
     if (!user || !body?.conversationId) return;
+    const allowed = await this.wsRate.allowTyping(user.sub);
+    if (!allowed) return;
     await this.redis.set(RedisKeys.typing(body.conversationId), user.sub, 'EX', 10);
     client.to(this.tenantRoom(user.tenantId)).emit('typing', {
       conversationId: body.conversationId,

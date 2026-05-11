@@ -1,0 +1,16 @@
+{
+  "name": "@relaydesk/sdk",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Foundation TypeScript SDK para integrações RelayDesk (cliente HTTP tipado, auth helpers).",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "5.7.3"
+  }
+}

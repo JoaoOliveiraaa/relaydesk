@@ -8,13 +8,19 @@ import {
   type AmqpConnection,
   type ConfirmChannel,
 } from '@relaydesk/queue';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import type { Counter } from 'prom-client';
 
 @Injectable()
 export class AmqpPublisher implements OnModuleInit, OnModuleDestroy {
   private conn!: AmqpConnection;
   private ch!: ConfirmChannel;
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    @InjectMetric('relaydesk_amqp_published_total')
+    private readonly amqpPublished: Counter<string>,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const env = this.config.get<RelayDeskEnv>('relayEnv')!;
@@ -36,7 +42,8 @@ export class AmqpPublisher implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  publish(routingKey: string, body: unknown, messageId?: string): Promise<void> {
-    return publishJson(this.ch, routingKey, body, { messageId });
+  async publish(routingKey: string, body: unknown, messageId?: string): Promise<void> {
+    await publishJson(this.ch, routingKey, body, { messageId });
+    this.amqpPublished.inc({ routing_key: routingKey });
   }
 }

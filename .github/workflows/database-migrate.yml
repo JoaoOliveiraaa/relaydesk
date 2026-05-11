@@ -1,0 +1,45 @@
+name: database-migrate
+
+on:
+  push:
+    paths:
+      - 'packages/database/prisma/**'
+      - '.github/workflows/database-migrate.yml'
+  pull_request:
+    paths:
+      - 'packages/database/prisma/**'
+      - '.github/workflows/database-migrate.yml'
+
+jobs:
+  migrate-deploy:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: relaydesk
+          POSTGRES_PASSWORD: relaydesk
+          POSTGRES_DB: relaydesk_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U relaydesk -d relaydesk_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://relaydesk:relaydesk@localhost:5432/relaydesk_ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+      - name: Prisma migrate deploy (CI-safe)
+        run: pnpm --filter @relaydesk/database exec prisma migrate deploy
+      - name: Prisma generate
+        run: pnpm --filter @relaydesk/database exec prisma generate

@@ -8,6 +8,7 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@nestjs/axios": "^4.0.1",
     "@nestjs/common": "^11.1.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.1.0",
@@ -17,10 +18,10 @@
     "@nestjs/websockets": "^11.1.0",
     "@relaydesk/common": "workspace:*",
     "@relaydesk/config": "workspace:*",
-    "@relaydesk/database": "workspace:*",
+    "@relaydesk/otel": "workspace:*",
     "@relaydesk/queue": "workspace:*",
-    "@relaydesk/shared-types": "workspace:*",
     "@relaydesk/redis": "workspace:*",
+    "@relaydesk/shared-types": "workspace:*",
     "@socket.io/redis-adapter": "^8.3.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",

@@ -12,6 +12,13 @@ const envSchema = z.object({
   REDIS_KEY_PREFIX: z.string().default('relaydesk'),
   /** Origens permitidas no gateway/ws (CSV) */
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
+  /** Token partilhado machine-to-machine (gateway interno, workers). Mín. 32 caracteres em produção. */
+  INTERNAL_SERVICE_TOKEN: z
+    .string()
+    .min(32, 'INTERNAL_SERVICE_TOKEN deve ter pelo menos 32 caracteres')
+    .default('relaydesk-internal-service-token-dev-only-32'),
+  /** Base URL do messaging-service (ex.: validação de conversa a partir do websocket-gateway). */
+  MESSAGING_SERVICE_BASE_URL: z.string().url().default('http://127.0.0.1:4012'),
 });
 
 export type RelayDeskEnv = z.infer<typeof envSchema>;

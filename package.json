@@ -11,7 +11,11 @@
     "dev:services": "turbo run dev --filter=./apps/*",
     "build:all": "turbo run build",
     "db:generate": "pnpm --filter @relaydesk/database exec prisma generate",
-    "db:migrate": "pnpm --filter @relaydesk/database exec prisma migrate dev",
+    "db:migrate:dev": "pnpm --filter @relaydesk/database exec prisma migrate dev",
+    "db:migrate:deploy": "pnpm --filter @relaydesk/database exec prisma migrate deploy",
+    "db:migrate:status": "pnpm --filter @relaydesk/database exec prisma migrate status",
+    "db:seed": "pnpm --filter @relaydesk/database exec prisma db seed",
+    "db:reset": "pnpm --filter @relaydesk/database exec prisma migrate reset",
     "db:push": "pnpm --filter @relaydesk/database exec prisma db push"
   },
   "dependencies": {
