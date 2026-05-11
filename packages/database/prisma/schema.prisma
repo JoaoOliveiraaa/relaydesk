@@ -56,6 +56,30 @@ enum ChannelConnectionStatus {
   disabled
 }
 
+/// Estado do webhook no provider (ex.: Telegram setWebhook).
+enum ChannelWebhookStatus {
+  not_configured
+  pending
+  active
+  error
+}
+
+/// Último check de saúde do provider (getMe, etc.).
+enum ProviderHealthStatus {
+  unknown
+  healthy
+  degraded
+  unhealthy
+}
+
+/// Sincronização com o provider (webhook, metadados).
+enum ProviderSyncState {
+  idle
+  syncing
+  synced
+  error
+}
+
 enum ParticipantRole {
   customer
   agent
@@ -181,6 +205,19 @@ model ChannelConnection {
   status              ChannelConnectionStatus @default(active)
   externalAccountId   String?
   metadata            Json?
+  /// Bot token / secrets sensíveis (AES-256-GCM), ver `RELAYDESK_CREDENTIALS_ENCRYPTION_KEY`.
+  encryptedBotToken   String?                 @db.Text
+  /// SHA-256 hex do `secret_token` enviado ao Telegram (validação do header sem guardar o segredo em claro).
+  webhookSecretSha256 String?
+  webhookStatus       ChannelWebhookStatus    @default(not_configured)
+  webhookConfiguredAt DateTime?
+  webhookLastError    String?                 @db.VarChar(1024)
+  providerHealth      ProviderHealthStatus    @default(unknown)
+  providerHealthCheckedAt DateTime?
+  providerHealthDetail String?                @db.VarChar(512)
+  syncState           ProviderSyncState       @default(idle)
+  inboundLastAt       DateTime?
+  outboundLastAt      DateTime?
   deletedAt           DateTime?
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt

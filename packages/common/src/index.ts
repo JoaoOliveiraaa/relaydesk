@@ -11,3 +11,5 @@ export * from './jwt/unsafe-jwt-payload';
 export * from './validation/relay-validation.pipe';
 export * from './resilience/circuit-breaker';
 export * from './resilience/failure-simulation';
+export * from './crypto/aes-credentials';
+export * from './crypto/webhook-secret';

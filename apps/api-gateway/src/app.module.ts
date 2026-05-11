@@ -34,7 +34,8 @@ import { API_GATEWAY_REDIS, RedisInfraModule } from './infra/redis-infra.module'
               url.startsWith('/health') ||
               url.startsWith('/metrics') ||
               url.startsWith('/docs') ||
-              url.startsWith('/openapi.json')
+              url.startsWith('/openapi.json') ||
+              url.includes('/providers/telegram/webhook/')
             );
           },
           storage: new ThrottlerStorageRedisService(redis),

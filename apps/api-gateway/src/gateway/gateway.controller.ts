@@ -28,7 +28,7 @@ export class GatewayController {
     return {
       name: 'RelayDesk API Gateway',
       version: '0.1.0',
-      services: ['auth', 'messaging', 'websocket', 'webhooks', 'automations'],
+      services: ['auth', 'messaging', 'websocket', 'webhooks', 'automations', 'providers'],
     };
   }
 
@@ -63,6 +63,25 @@ export class GatewayController {
     return res.status(r.status).json(r.data);
   }
 
+  @Post('providers/telegram/webhook/:connectionId')
+  @ApiTags('Providers · Telegram')
+  @ApiOperation({ summary: 'Webhook público Telegram (proxy para messaging-service)' })
+  @ApiParam({ name: 'connectionId' })
+  async telegramWebhook(
+    @Param('connectionId') connectionId: string,
+    @Body() body: unknown,
+    @Req() req: Request,
+    @Res() res: Response,
+  ) {
+    const r = await this.gateway.proxyMessaging(
+      `/v1/providers/telegram/webhook/${encodeURIComponent(connectionId)}`,
+      'POST',
+      body,
+      this.gateway.buildForwardHeaders(req),
+    );
+    return res.status(r.status).json(r.data);
+  }
+
   @Get('inbox/conversations')
   async inboxConversations(@Req() req: Request, @Res() res: Response) {
     const r = await this.gateway.proxyMessaging('/v1/inbox/conversations', 'GET', undefined, this.gateway.buildForwardHeaders(req));
@@ -77,6 +96,39 @@ export class GatewayController {
   ) {
     const r = await this.gateway.proxyMessaging(
       `/v1/inbox/conversations/${encodeURIComponent(conversationId)}/messages`,
+      'GET',
+      undefined,
+      this.gateway.buildForwardHeaders(req),
+    );
+    return res.status(r.status).json(r.data);
+  }
+
+  @Get('channel-connections')
+  @ApiTags('Channel connections')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Listar ligações de canal' })
+  async listChannelConnections(@Req() req: Request, @Res() res: Response) {
+    const r = await this.gateway.proxyMessaging('/v1/channel-connections', 'GET', undefined, this.gateway.buildForwardHeaders(req));
+    return res.status(r.status).json(r.data);
+  }
+
+  @Post('channel-connections/telegram')
+  @ApiTags('Channel connections')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Ligar bot Telegram' })
+  async connectTelegram(@Body() body: unknown, @Req() req: Request, @Res() res: Response) {
+    const r = await this.gateway.proxyMessaging('/v1/channel-connections/telegram', 'POST', body, this.gateway.buildForwardHeaders(req));
+    return res.status(r.status).json(r.data);
+  }
+
+  @Get('channel-connections/:id')
+  @ApiTags('Channel connections')
+  @ApiBearerAuth('access-token')
+  @ApiOperation({ summary: 'Detalhe de ligação de canal' })
+  @ApiParam({ name: 'id' })
+  async getChannelConnection(@Param('id') id: string, @Req() req: Request, @Res() res: Response) {
+    const r = await this.gateway.proxyMessaging(
+      `/v1/channel-connections/${encodeURIComponent(id)}`,
       'GET',
       undefined,
       this.gateway.buildForwardHeaders(req),

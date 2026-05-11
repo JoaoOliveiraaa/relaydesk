@@ -114,10 +114,18 @@ export default function InboxPage() {
     })
     s.on("disconnect", () => setWsState("off"))
     s.on("relay:event", (envelope: { type?: string; conversationId?: string; payload?: { message?: ApiMessage } }) => {
-      if (envelope.type !== "message.created" || !envelope.conversationId || !envelope.payload?.message) return
+      const t = envelope.type
+      if (!envelope.conversationId || !envelope.payload?.message) return
+      if (t !== "message.created" && t !== "message.updated") return
       const m = envelope.payload.message
       setMessages((prev) => {
-        if (prev.some((x) => x.id === m.id)) return prev
+        const idx = prev.findIndex((x) => x.id === m.id)
+        if (idx >= 0) {
+          const next = [...prev]
+          next[idx] = { ...prev[idx], ...m }
+          return next
+        }
+        if (t === "message.updated") return prev
         return [...prev, m]
       })
       setConversations((prev) =>

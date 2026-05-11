@@ -19,6 +19,24 @@ export class IngestMessageDto {
   @IsString()
   sender!: string;
 
+  @ApiPropertyOptional({ description: 'Nome apresentado no inbox (quando diferente do sender técnico)' })
+  @IsOptional()
+  @IsString()
+  customerDisplayName?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Chave da thread no provider (ex.: grupo Telegram). Quando omitido, agrupa por `sender`.',
+  })
+  @IsOptional()
+  @IsString()
+  conversationThreadKey?: string;
+
+  @ApiPropertyOptional({ description: 'Ligação de canal persistida (webhook Telegram, …)' })
+  @IsOptional()
+  @IsString()
+  channelConnectionId?: string;
+
   @ApiProperty({ example: 'Olá, preciso de ajuda com a minha encomenda.' })
   @IsString()
   content!: string;

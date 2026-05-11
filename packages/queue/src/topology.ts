@@ -18,6 +18,10 @@ export const QUEUES = {
   notificationSendDlq: 'q.notification.send.dlq',
   realtimeOutbound: 'q.realtime.outbound',
   realtimeOutboundDlq: 'q.realtime.outbound.dlq',
+  channelInbound: 'q.channel.inbound',
+  channelInboundDlq: 'q.channel.inbound.dlq',
+  channelOutbound: 'q.channel.outbound',
+  channelOutboundDlq: 'q.channel.outbound.dlq',
 } as const;
 
 const MAIN_ARGS = {
@@ -69,4 +73,14 @@ export async function assertRelayTopology(ch: ConfirmChannel): Promise<void> {
   await ch.assertQueue(QUEUES.realtimeOutboundDlq, DLQ_ARGS);
   await ch.bindQueue(QUEUES.realtimeOutbound, EXCHANGE_MAIN, 'realtime.outbound');
   await ch.bindQueue(QUEUES.realtimeOutboundDlq, EXCHANGE_DLX, 'realtime.outbound.dlq');
+
+  await ch.assertQueue(QUEUES.channelInbound, dlx('channel.inbound.dlq'));
+  await ch.assertQueue(QUEUES.channelInboundDlq, DLQ_ARGS);
+  await ch.bindQueue(QUEUES.channelInbound, EXCHANGE_MAIN, 'channel.inbound');
+  await ch.bindQueue(QUEUES.channelInboundDlq, EXCHANGE_DLX, 'channel.inbound.dlq');
+
+  await ch.assertQueue(QUEUES.channelOutbound, dlx('channel.outbound.dlq'));
+  await ch.assertQueue(QUEUES.channelOutboundDlq, DLQ_ARGS);
+  await ch.bindQueue(QUEUES.channelOutbound, EXCHANGE_MAIN, 'channel.outbound');
+  await ch.bindQueue(QUEUES.channelOutboundDlq, EXCHANGE_DLX, 'channel.outbound.dlq');
 }

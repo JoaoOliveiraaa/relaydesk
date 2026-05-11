@@ -30,10 +30,15 @@ export class GatewayService {
       randomUUID();
     const cid =
       typeof req.headers['x-correlation-id'] === 'string' ? req.headers['x-correlation-id'] : rid;
+    const tgSecret =
+      typeof req.headers['x-telegram-bot-api-secret-token'] === 'string'
+        ? req.headers['x-telegram-bot-api-secret-token']
+        : undefined;
     return {
       'x-request-id': rid,
       'x-correlation-id': cid,
       Authorization: req.headers.authorization,
+      ...(tgSecret ? { 'x-telegram-bot-api-secret-token': tgSecret } : {}),
     };
   }
 

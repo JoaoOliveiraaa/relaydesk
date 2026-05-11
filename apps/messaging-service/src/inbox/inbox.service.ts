@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Conversation, Message } from '@relaydesk/database';
 import {
+  Channel,
   MessageDeliveryStatus,
   MessageSenderType,
   MessageSource,
@@ -25,6 +26,7 @@ const inboxConversationSelect = {
 export type InboxConversationRow = Prisma.ConversationGetPayload<{ select: typeof inboxConversationSelect }>;
 import {
   RELAY_EVENT_ROUTING,
+  type ChannelOutboundPayload,
   type RealtimeOutboundPayload,
 } from '@relaydesk/shared-types';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -69,6 +71,13 @@ export class InboxService {
     correlationId?: string,
   ): Promise<Message> {
     await this.assertConversationInTenant(conversationId, user.tenantId);
+    const conv = await prisma.conversation.findFirstOrThrow({
+      where: { id: conversationId, tenantId: user.tenantId, deletedAt: null },
+    });
+    const telegramOutbound =
+      conv.channel === Channel.telegram &&
+      Boolean(conv.channelConnectionId) &&
+      this.resolveTelegramChatId(conv.metadata, conv.customerExternalId) !== null;
 
     const { message, conversation } = await prisma.$transaction(async (tx) => {
       const m = await tx.message.create({
@@ -76,7 +85,9 @@ export class InboxService {
           conversationId,
           senderType: MessageSenderType.agent,
           source: MessageSource.web_inbox,
-          deliveryStatus: MessageDeliveryStatus.sent,
+          deliveryStatus: telegramOutbound
+            ? MessageDeliveryStatus.pending
+            : MessageDeliveryStatus.sent,
           content,
           sentByUserId: user.sub,
         },
@@ -149,6 +160,49 @@ export class InboxService {
       },
     });
 
+    if (telegramOutbound && conv.channelConnectionId) {
+      const chatId = this.resolveTelegramChatId(conv.metadata, conv.customerExternalId)!;
+      const outbound: ChannelOutboundPayload = {
+        v: 1,
+        provider: 'telegram',
+        tenantId: user.tenantId,
+        conversationId,
+        messageId: message.id,
+        channelConnectionId: conv.channelConnectionId,
+        chatId,
+        text: content,
+      };
+      await this.amqp.publish(RELAY_EVENT_ROUTING.CHANNEL_OUTBOUND, outbound, {
+        messageId: `${message.id}:tg:out`,
+        correlationId: correlationId ?? message.id,
+        relaydesk: {
+          tenantId: user.tenantId,
+          conversationId,
+          eventId: `${message.id}:tg:out`,
+        },
+      });
+    }
+
     return message;
+  }
+
+  private resolveTelegramChatId(
+    metadata: Prisma.JsonValue | null,
+    customerExternalId: string | null,
+  ): string | null {
+    const m =
+      metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+        ? (metadata as Record<string, unknown>)
+        : {};
+    if (typeof m.telegramChatId === 'number') {
+      return String(m.telegramChatId);
+    }
+    if (customerExternalId?.startsWith('telegram:chat:')) {
+      return customerExternalId.slice('telegram:chat:'.length);
+    }
+    if (customerExternalId && /^\d+$/.test(customerExternalId)) {
+      return customerExternalId;
+    }
+    return null;
   }
 }

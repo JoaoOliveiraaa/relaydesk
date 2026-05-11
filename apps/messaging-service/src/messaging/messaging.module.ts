@@ -7,5 +7,6 @@ import { WebhooksModule } from '../webhooks/webhooks.module';
   imports: [WebhooksModule],
   controllers: [MessagingController],
   providers: [MessagingService],
+  exports: [MessagingService],
 })
 export class MessagingModule {}

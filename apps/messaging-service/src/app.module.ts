@@ -7,6 +7,7 @@ import { InboxModule } from './inbox/inbox.module';
 import { InternalModule } from './internal/internal.module';
 import { MessagingModule } from './messaging/messaging.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { ProvidersModule } from './providers/providers.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
     InfraModule,
     HealthModule,
     MessagingModule,
+    ProvidersModule,
     InboxModule,
     InternalModule,
     WebhooksModule,

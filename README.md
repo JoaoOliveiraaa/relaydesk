@@ -23,6 +23,21 @@ Plataforma **SaaS multi-tenant** para operações de suporte e inbox em tempo re
 - **Messaging Service**: inbox, ingestão omnichannel, filas, **internal API** para o WS gateway validar conversas.
 - **WebSocket Gateway**: Socket.IO com adapter Redis, validação de membership via HTTP interno, rate limit WS em janela deslizante Redis.
 
+### Integração Telegram (primeiro canal externo)
+
+Fluxo **inbound**: Telegram → `POST /v1/providers/telegram/webhook/:connectionId` (API Gateway → messaging) → validação `X-Telegram-Bot-Api-Secret-Token` (SHA-256 do segredo registado) → publicação **`channel.inbound`** (RabbitMQ) → consumidor normaliza com `TelegramChannelAdapter` → `MessagingService.ingest` → `realtime.outbound` → inbox.
+
+Fluxo **outbound**: agente no dashboard → `POST /v1/inbox/.../messages` → mensagem `pending` (Telegram) → **`channel.outbound`** → `sendMessage` (span `telegram.sendMessage`, métricas `relaydesk_telegram_*`) → `message.updated` em tempo real.
+
+**Ligação do bot** (JWT): `POST /v1/channel-connections/telegram` com `{ "botToken": "…" }` — `getMe`, token guardado encriptado (AES-256-GCM), `setWebhook` com `secret_token` e URL pública.
+
+Variáveis relevantes:
+
+- `PUBLIC_WEBHOOK_BASE_URL` — base pública do gateway (ex. `https://api.exemplo.com/v1`) usada em `setWebhook`.
+- `RELAYDESK_CREDENTIALS_ENCRYPTION_KEY` — hex 64 caracteres (32 bytes) recomendado em produção; em dev pode omitir-se (fallback derivado — ver `@relaydesk/common`).
+
+Métricas Prometheus adicionais no messaging: `relaydesk_telegram_webhook_enqueued_total`, `relaydesk_telegram_inbound_processed_total`, `relaydesk_telegram_outbound_total`, `relaydesk_telegram_api_duration_seconds`.
+
 ---
 
 ## Monorepo (`pnpm` + `turbo`)
@@ -39,6 +54,7 @@ Plataforma **SaaS multi-tenant** para operações de suporte e inbox em tempo re
 | `packages/queue` | AMQP, contratos de routing |
 | `packages/redis` | Cliente ioredis + rate limit janela deslizante (Lua) |
 | `packages/shared-types` | Tipos + **Zod** para envelopes de eventos |
+| `packages/channel-adapters` | Adapters omnichannel (Telegram, mock WhatsApp, …) → `IncomingMessage` |
 | `packages/platform-nest` | Swagger RelayDesk (branding, JWT, internal token) |
 | `packages/otel` | Bootstrap OpenTelemetry → OTLP (Jaeger / Tempo) |
 | `apps/webhook-service` | Webhook delivery engine — HMAC, retries, DLQ, Prometheus |

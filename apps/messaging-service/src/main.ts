@@ -38,7 +38,7 @@ async function bootstrap(): Promise<void> {
     description:
       'Inbox, ingestão omnichannel e endpoints internos para outros serviços. Envelope RelayDesk em todas as respostas JSON.',
     extraDescription:
-      '### Domínios\n- **Messaging**: ingestão de mensagens.\n- **Inbox**: conversas e mensagens autenticadas (JWT).\n- **Platform**: rotas internas (`X-RelayDesk-Internal-Token`).\n',
+      '### Domínios\n- **Messaging**: ingestão de mensagens.\n- **Inbox**: conversas e mensagens autenticadas (JWT).\n- **Providers**: webhook Telegram (`channel.inbound` → ingest) e fila `channel.outbound` para `sendMessage`.\n- **Channel connections**: ligação de bots (token encriptado, `setWebhook`).\n- **Platform**: rotas internas (`X-RelayDesk-Internal-Token`).\n',
   });
 
   const port = Number(process.env.PORT_MESSAGING_SERVICE ?? 4012);

@@ -48,13 +48,17 @@ export class MessagingService {
 
     const channelEnum = dto.channel as Channel;
     const participantKey = `ext:${dto.sender}`;
+    const threadKey = dto.conversationThreadKey ?? dto.sender;
+    const displayName = dto.customerDisplayName ?? dto.sender;
+    const md = (dto.metadata ?? {}) as Record<string, unknown>;
+    const telegramChatId = typeof md.telegramChatId === 'number' ? md.telegramChatId : undefined;
 
     const { conversation, message } = await prisma.$transaction(async (tx) => {
       let conversation = await tx.conversation.findFirst({
         where: {
           tenantId: dto.tenantId,
           channel: channelEnum,
-          customerExternalId: dto.sender,
+          customerExternalId: threadKey,
           deletedAt: null,
         },
       });
@@ -64,21 +68,41 @@ export class MessagingService {
           data: {
             tenantId: dto.tenantId,
             channel: channelEnum,
-            customerName: dto.sender,
-            customerExternalId: dto.sender,
+            channelConnectionId: dto.channelConnectionId ?? undefined,
+            customerName: displayName,
+            customerExternalId: threadKey,
             status: ConversationStatus.open,
             lastMessageAt: new Date(dto.timestamp),
             lastMessagePreview: dto.content.slice(0, 512),
             unreadCount: 1,
+            metadata:
+              telegramChatId !== undefined
+                ? ({ telegramChatId } as Prisma.InputJsonValue)
+                : undefined,
           },
         });
       } else {
+        const metaPatch =
+          telegramChatId !== undefined
+            ? ({
+                ...((conversation.metadata &&
+                typeof conversation.metadata === 'object' &&
+                !Array.isArray(conversation.metadata)
+                  ? (conversation.metadata as Record<string, unknown>)
+                  : {}) as Record<string, unknown>),
+                telegramChatId,
+              } as Prisma.InputJsonValue)
+            : undefined;
         conversation = await tx.conversation.update({
           where: { id: conversation.id },
           data: {
             lastMessageAt: new Date(dto.timestamp),
             lastMessagePreview: dto.content.slice(0, 512),
             unreadCount: { increment: 1 },
+            ...(dto.channelConnectionId
+              ? { channelConnectionId: dto.channelConnectionId }
+              : {}),
+            ...(metaPatch !== undefined ? { metadata: metaPatch } : {}),
           },
         });
       }
@@ -96,10 +120,10 @@ export class MessagingService {
           role: ParticipantRole.customer,
           participantKey,
           externalId: dto.sender,
-          displayName: dto.sender,
+          displayName,
         },
         update: {
-          displayName: dto.sender,
+          displayName,
           deletedAt: null,
         },
       });
@@ -135,6 +159,8 @@ export class MessagingService {
         tenantId: dto.tenantId,
         channel: dto.channel,
         sender: dto.sender,
+        customerDisplayName: dto.customerDisplayName,
+        conversationThreadKey: dto.conversationThreadKey,
         content: dto.content,
         timestamp: new Date(dto.timestamp),
         metadata: dto.metadata,
@@ -244,5 +270,58 @@ export class MessagingService {
         RELAY_EVENT_ROUTING.REALTIME_OUTBOUND,
       ],
     };
+  }
+
+  /** Atualiza UI (inbox) quando o estado de entrega de uma mensagem muda (ex.: Telegram). */
+  async emitRealtimeMessageDelivery(params: {
+    tenantId: string;
+    conversationId: string;
+    message: {
+      id: string;
+      content: string;
+      senderType: MessageSenderType;
+      source: MessageSource;
+      deliveryStatus: MessageDeliveryStatus;
+      sentByUserId: string | null;
+      createdAt: Date;
+    };
+    correlationId?: string;
+  }): Promise<void> {
+    const refreshed = await prisma.conversation.findUniqueOrThrow({
+      where: { id: params.conversationId },
+    });
+    const envelope: RealtimeOutboundPayload = {
+      v: 1,
+      type: 'message.updated',
+      tenantId: params.tenantId,
+      conversationId: params.conversationId,
+      correlationId: params.correlationId,
+      payload: {
+        message: {
+          id: params.message.id,
+          content: params.message.content,
+          senderType: params.message.senderType,
+          source: params.message.source,
+          deliveryStatus: params.message.deliveryStatus,
+          sentByUserId: params.message.sentByUserId,
+          createdAt: params.message.createdAt.toISOString(),
+        },
+        conversation: {
+          id: refreshed.id,
+          lastMessagePreview: refreshed.lastMessagePreview,
+          lastMessageAt: refreshed.lastMessageAt?.toISOString() ?? null,
+          unreadCount: refreshed.unreadCount,
+        },
+      },
+    };
+    await this.amqp.publish(RELAY_EVENT_ROUTING.REALTIME_OUTBOUND, envelope, {
+      messageId: params.message.id,
+      correlationId: params.correlationId ?? params.message.id,
+      relaydesk: {
+        tenantId: params.tenantId,
+        conversationId: params.conversationId,
+        eventId: params.message.id,
+      },
+    });
   }
 }

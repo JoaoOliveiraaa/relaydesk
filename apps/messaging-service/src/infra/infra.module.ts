@@ -30,6 +30,27 @@ export const REDIS = 'REDIS';
       labelNames: ['routing_key'],
       buckets: [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
     }),
+    makeCounterProvider({
+      name: 'relaydesk_telegram_webhook_enqueued_total',
+      help: 'Updates Telegram aceites no edge HTTP e enfileirados',
+      labelNames: ['outcome'],
+    }),
+    makeCounterProvider({
+      name: 'relaydesk_telegram_inbound_processed_total',
+      help: 'Mensagens Telegram normalizadas e entregues ao ingest',
+      labelNames: ['outcome'],
+    }),
+    makeCounterProvider({
+      name: 'relaydesk_telegram_outbound_total',
+      help: 'Tentativas de envio Telegram (sendMessage)',
+      labelNames: ['outcome'],
+    }),
+    makeHistogramProvider({
+      name: 'relaydesk_telegram_api_duration_seconds',
+      help: 'Latência chamadas HTTP à Telegram Bot API (segundos)',
+      labelNames: ['method'],
+      buckets: [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 15, 30],
+    }),
     {
       provide: REDIS,
       inject: [ConfigService],

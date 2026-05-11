@@ -25,6 +25,19 @@ const envSchema = z.object({
     .default('relaydesk-internal-service-token-dev-only-32'),
   /** Base URL do messaging-service (ex.: validação de conversa a partir do websocket-gateway). */
   MESSAGING_SERVICE_BASE_URL: z.string().url().default('http://127.0.0.1:4012'),
+  /**
+   * URL pública usada em `setWebhook` (Telegram, etc.). Deve apontar para o API Gateway ou edge TLS.
+   * Ex.: `https://api.seudominio.com/v1`
+   */
+  PUBLIC_WEBHOOK_BASE_URL: z.string().url().default('http://127.0.0.1:4010/v1'),
+  /**
+   * Chave AES-256 em hex (64 caracteres) para encriptar tokens de bots em `ChannelConnection.encryptedBotToken`.
+   * Em produção é obrigatório definir um valor aleatório estável.
+   */
+  RELAYDESK_CREDENTIALS_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/)
+    .optional(),
 });
 
 export type RelayDeskEnv = z.infer<typeof envSchema>;
