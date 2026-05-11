@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ——— Plans & access ———
+
+enum Plan {
+  free
+  starter
+  pro
+  enterprise
+}
+
+enum UserRole {
+  owner
+  admin
+  agent
+  viewer
+}
+
+// ——— Conversations & channels ———
+
+enum ConversationStatus {
+  open
+  pending
+  resolved
+  snoozed
+}
+
+enum ConversationPriority {
+  low
+  normal
+  high
+  urgent
+}
+
+enum Channel {
+  whatsapp
+  telegram
+  instagram
+  email
+  internal
+}
+
+enum ChannelConnectionStatus {
+  active
+  error
+  disabled
+}
+
+enum ParticipantRole {
+  customer
+  agent
+  bot
+}
+
+// ——— Messages ———
+
+enum MessageSenderType {
+  customer
+  agent
+  system
+  bot
+}
+
+enum MessageSource {
+  omnichannel_inbound
+  web_inbox
+  api
+  system
+  automation
+}
+
+enum MessageDeliveryStatus {
+  pending
+  sent
+  delivered
+  read
+  failed
+}
+
+// ——— Webhooks & jobs ———
+
+enum WebhookEventStatus {
+  pending
+  processing
+  delivered
+  failed
+}
+
+enum QueueJobStatus {
+  pending
+  processing
+  completed
+  failed
+  dead
+}
+
+enum QueueJobType {
+  message_pipeline
+  webhook_dispatch
+  ai_inference
+  notification
+  automation
+}
+
+model Tenant {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  plan      Plan      @default(free)
+  metadata  Json?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  users                   User[]
+  conversations           Conversation[]
+  channelConnections      ChannelConnection[]
+  conversationParticipants ConversationParticipant[]
+  webhookEvents           WebhookEvent[]
+  automations             Automation[]
+  queueJobs               QueueJob[]
+
+  @@index([deletedAt])
+}
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  email        String
+  passwordHash String
+  role         UserRole  @default(agent)
+  avatar       String?
+  metadata     Json?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant                 Tenant                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedConversations  Conversation[]           @relation("AssignedAgent")
+  messagesAuthored       Message[]                @relation("MessageAuthor")
+  conversationParticipants ConversationParticipant[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, role, deletedAt])
+}
+
+model ChannelConnection {
+  id                  String                  @id @default(cuid())
+  tenantId            String
+  channel             Channel
+  displayName         String
+  status              ChannelConnectionStatus @default(active)
+  externalAccountId   String?
+  metadata            Json?
+  deletedAt           DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+
+  @@index([tenantId, channel, deletedAt])
+  @@index([tenantId, status])
+}
+
+model Conversation {
+  id                 String               @id @default(cuid())
+  tenantId           String
+  channelConnectionId String?
+  channel            Channel
+  customerName       String?
+  customerExternalId String?
+  subject            String?              @db.VarChar(500)
+  status             ConversationStatus   @default(open)
+  priority           ConversationPriority @default(normal)
+  assignedToId       String?
+  lastMessageAt      DateTime?
+  lastMessagePreview String?              @db.VarChar(512)
+  /// Contagem desnormalizada: mensagens do cliente ainda não tratadas como “vistas” no inbox (MVP).
+  unreadCount        Int                  @default(0)
+  metadata           Json?
+  deletedAt          DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  tenant            Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channelConnection ChannelConnection?        @relation(fields: [channelConnectionId], references: [id], onDelete: SetNull)
+  assignedTo        User?                     @relation("AssignedAgent", fields: [assignedToId], references: [id], onDelete: SetNull)
+  messages          Message[]
+  participants      ConversationParticipant[]
+
+  @@index([tenantId, deletedAt, lastMessageAt(sort: Desc)])
+  @@index([tenantId, status, deletedAt])
+  @@index([tenantId, channel, deletedAt])
+  @@index([assignedToId, deletedAt])
+}
+
+model ConversationParticipant {
+  id              String           @id @default(cuid())
+  tenantId        String
+  conversationId  String
+  role            ParticipantRole
+  /// Chave estável para upsert: `user:{userId}` ou `ext:{externalId}`
+  participantKey  String
+  userId          String?
+  externalId      String?
+  displayName     String?
+  lastReadAt      DateTime?
+  unreadCount     Int              @default(0)
+  metadata        Json?
+  deletedAt       DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([conversationId, participantKey])
+  @@index([tenantId, conversationId])
+  @@index([userId, deletedAt])
+}
+
+model Message {
+  id               String                  @id @default(cuid())
+  conversationId   String
+  senderType       MessageSenderType
+  source           MessageSource           @default(omnichannel_inbound)
+  deliveryStatus   MessageDeliveryStatus   @default(sent)
+  content          String                  @db.Text
+  metadata         Json?
+  retryMetadata    Json?
+  externalId       String?
+  sentByUserId     String?
+  deletedAt        DateTime?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sentByUser   User?        @relation("MessageAuthor", fields: [sentByUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, deletedAt, createdAt(sort: Desc)])
+  @@index([externalId])
+}
+
+model WebhookEvent {
+  id        String               @id @default(cuid())
+  tenantId  String
+  event     String
+  payload   Json
+  status    WebhookEventStatus   @default(pending)
+  retries   Int                  @default(0)
+  metadata  Json?
+  deletedAt DateTime?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt(sort: Desc)])
+}
+
+model Automation {
+  id        String    @id @default(cuid())
+  tenantId  String
+  name      String
+  trigger   Json
+  actions   Json
+  active    Boolean   @default(true)
+  metadata  Json?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, active])
+}
+
+model QueueJob {
+  id        String         @id @default(cuid())
+  tenantId  String?
+  type      QueueJobType
+  payload   Json
+  status    QueueJobStatus @default(pending)
+  retries   Int            @default(0)
+  lastError String?        @db.Text
+  metadata  Json?
+  deletedAt DateTime?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+
+  @@index([status, type])
+  @@index([tenantId])
+}

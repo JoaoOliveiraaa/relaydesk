@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: relaydesk-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: relaydesk
+      POSTGRES_PASSWORD: relaydesk
+      POSTGRES_DB: relaydesk
+    ports:
+      - "5432:5432"
+    volumes:
+      - relaydesk_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U relaydesk -d relaydesk"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: relaydesk-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - relaydesk_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: relaydesk-rabbitmq
+    restart: unless-stopped
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: relaydesk
+      RABBITMQ_DEFAULT_PASS: relaydesk
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - relaydesk_rabbit:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  relaydesk_pg:
+  relaydesk_redis:
+  relaydesk_rabbit:
