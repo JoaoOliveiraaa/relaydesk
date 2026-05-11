@@ -25,7 +25,7 @@ const mainNavItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/inbox", icon: Inbox, label: "Inbox", badge: 12 },
   { href: "/automations", icon: Workflow, label: "Automações" },
-  { href: "/webhooks", icon: Webhook, label: "Webhooks" },
+  { href: "/workspace/webhooks", icon: Webhook, label: "Webhooks" },
   { href: "/analytics", icon: BarChart3, label: "Analytics" },
   { href: "/architecture", icon: Layers, label: "Arquitetura" },
 ]

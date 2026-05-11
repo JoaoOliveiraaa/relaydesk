@@ -70,7 +70,9 @@ export function HeroSection() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
               </span>
-              <span className="text-sm text-muted-foreground">Now processing <span className="text-foreground font-medium">2.3M events/day</span></span>
+              <span className="text-sm text-muted-foreground">
+                Infraestrutura <span className="font-medium text-foreground">event-driven</span> · multi-tenant
+              </span>
             </motion.div>
 
             {/* Headline */}
@@ -80,9 +82,9 @@ export function HeroSection() {
               transition={{ delay: 0.2 }}
               className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-foreground leading-[1.1]"
             >
-              <span className="text-balance">Automacao de atendimento em </span>
-              <span className="bg-gradient-to-r from-blue-400 via-violet-400 to-blue-400 bg-clip-text text-transparent">tempo real</span>
-              <span className="text-balance"> para empresas modernas</span>
+              <span className="text-balance">Omnichannel enterprise com </span>
+              <span className="text-balance text-foreground">filas, realtime</span>
+              <span className="text-balance"> e observabilidade de primeira classe</span>
             </motion.h1>
 
             {/* Subtitle */}
@@ -92,8 +94,9 @@ export function HeroSection() {
               transition={{ delay: 0.3 }}
               className="mt-6 text-lg text-muted-foreground max-w-xl text-pretty"
             >
-              Arquitetura orientada a eventos com IA, filas distribuidas, webhooks, 
-              realtime e escalabilidade enterprise. Conecte todos os canais em uma unica plataforma.
+              Construído como microserviços NestJS com RabbitMQ, Redis, PostgreSQL e OpenTelemetry — do motor de
+              webhooks ao primeiro canal real (Telegram), com a mesma seriedade de uptime que esperarias num core
+              interno.
             </motion.p>
 
             {/* CTA Buttons */}
@@ -103,16 +106,18 @@ export function HeroSection() {
               transition={{ delay: 0.4 }}
               className="mt-8 flex flex-wrap gap-4"
             >
-              <Link href="/login">
-                <Button size="lg" className="bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white border-0 shadow-lg shadow-blue-500/25 h-12 px-6">
-                  Start Free Trial
-                  <ArrowRight className="ml-2 w-4 h-4" />
+              <Link href="/register">
+                <Button size="lg" className="h-12 px-6 font-medium shadow-sm">
+                  Começar
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
-              <Button size="lg" variant="outline" className="h-12 px-6 border-white/10 hover:bg-white/5">
-                <Play className="mr-2 w-4 h-4" />
-                Watch Demo
-              </Button>
+              <Link href="/developers">
+                <Button size="lg" variant="outline" className="h-12 border-border px-6 hover:bg-secondary/80">
+                  <Play className="mr-2 h-4 w-4" />
+                  Developer portal
+                </Button>
+              </Link>
             </motion.div>
 
             {/* Tech Badges */}
@@ -171,7 +176,7 @@ export function HeroSection() {
             <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 via-violet-500/20 to-blue-500/20 blur-3xl" />
             
             {/* Main Dashboard Card */}
-            <div className="relative bg-card/80 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl">
+            <div className="relative rounded-2xl border border-border bg-card/90 p-4 shadow-xl backdrop-blur-xl">
               {/* Header */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
@@ -272,29 +277,19 @@ export function HeroSection() {
             </div>
 
             {/* Floating Elements */}
-            <motion.div
-              animate={{ y: [0, -10, 0] }}
-              transition={{ repeat: Infinity, duration: 3, ease: "easeInOut" }}
-              className="absolute -top-4 -right-4 bg-gradient-to-br from-green-500/90 to-emerald-600/90 rounded-xl p-3 shadow-lg shadow-green-500/25"
-            >
-              <div className="flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-white" />
-                <span className="text-sm font-bold text-white">+127%</span>
+            <div className="absolute -top-3 -right-3 rounded-lg border border-border bg-card px-3 py-2 shadow-md">
+              <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                <TrendingUp className="h-3.5 w-3.5 text-primary" />
+                Throughput estável
               </div>
-              <span className="text-[10px] text-white/80">Response Rate</span>
-            </motion.div>
+            </div>
 
-            <motion.div
-              animate={{ y: [0, 10, 0] }}
-              transition={{ repeat: Infinity, duration: 4, ease: "easeInOut", delay: 0.5 }}
-              className="absolute -bottom-4 -left-4 bg-gradient-to-br from-blue-500/90 to-violet-600/90 rounded-xl p-3 shadow-lg shadow-blue-500/25"
-            >
-              <div className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-white" />
-                <span className="text-sm font-bold text-white">AI Active</span>
+            <div className="absolute -bottom-3 -left-3 rounded-lg border border-border bg-card px-3 py-2 shadow-md">
+              <div className="flex items-center gap-2 text-xs font-medium text-foreground">
+                <Bot className="h-3.5 w-3.5 text-primary" />
+                AI pipeline
               </div>
-              <span className="text-[10px] text-white/80">Processing 847 chats</span>
-            </motion.div>
+            </div>
           </motion.div>
         </div>
       </div>

@@ -117,23 +117,18 @@ export function CTASection() {
                 transition={{ delay: 0.3 }}
                 className="flex flex-col sm:flex-row items-center justify-center gap-4"
               >
-                <Link href="/login">
-                  <Button 
-                    size="lg" 
-                    className="bg-gradient-to-r from-blue-500 to-violet-600 hover:from-blue-600 hover:to-violet-700 text-white border-0 shadow-lg shadow-blue-500/25 h-14 px-8 text-lg"
-                  >
-                    <Zap className="mr-2 w-5 h-5" />
-                    Start Free Trial
-                    <ArrowRight className="ml-2 w-5 h-5" />
+                <Link href="/register">
+                  <Button size="lg" className="h-14 px-8 text-lg font-medium shadow-sm">
+                    <Zap className="mr-2 h-5 w-5" />
+                    Criar conta
+                    <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
-                <Button 
-                  size="lg" 
-                  variant="outline" 
-                  className="h-14 px-8 text-lg border-white/10 hover:bg-white/5"
-                >
-                  Schedule Demo
-                </Button>
+                <Link href="/contact">
+                  <Button size="lg" variant="outline" className="h-14 border-border px-8 text-lg hover:bg-secondary/80">
+                    Falar com vendas
+                  </Button>
+                </Link>
               </motion.div>
 
               {/* Trust badges */}

@@ -23,6 +23,22 @@ Plataforma **SaaS multi-tenant** para operações de suporte e inbox em tempo re
 - **Messaging Service**: inbox, ingestão omnichannel, filas, **internal API** para o WS gateway validar conversas.
 - **WebSocket Gateway**: Socket.IO com adapter Redis, validação de membership via HTTP interno, rate limit WS em janela deslizante Redis.
 
+### Site público & developer portal (Next.js)
+
+A raiz do site (`/`) vive em `app/(marketing)/` com **navbar + footer enterprise**, grelha editorial e secções de produto (incl. showcases de infraestrutura, webhooks, observabilidade e Telegram).
+
+| Rota | Conteúdo |
+|------|----------|
+| `/` | Landing completa |
+| `/pricing` | Planos Starter / Growth / Enterprise |
+| `/developers` | Portal developer (entrada) |
+| `/docs`, `/api-reference`, `/sdks`, `/webhooks` | Documentação pública |
+| `/status`, `/changelog`, `/roadmap` | Operações & roadmap |
+| `/security`, `/privacy`, `/terms`, `/gdpr`, `/sla`, `/cookies` | Trust & legal |
+| `/about`, `/blog`, `/careers`, `/contact`, `/press`, `/integrations` | Institucional |
+
+O dashboard continua em `app/(dashboard)/` (ex.: **Webhooks operacionais** em `/workspace/webhooks` para não colidir com `/webhooks` do site público).
+
 ### Integração Telegram (primeiro canal externo)
 
 Fluxo **inbound**: Telegram → `POST /v1/providers/telegram/webhook/:connectionId` (API Gateway → messaging) → validação `X-Telegram-Bot-Api-Secret-Token` (SHA-256 do segredo registado) → publicação **`channel.inbound`** (RabbitMQ) → consumidor normaliza com `TelegramChannelAdapter` → `MessagingService.ingest` → `realtime.outbound` → inbox.
@@ -211,19 +227,106 @@ Instrumentação: HTTP/Node + **Prisma** (auth & messaging com `prisma: true`).
 
 ## Setup local
 
-**Requisitos:** Node ≥ 20, pnpm, Docker (opcional mas recomendado).
+**Requisitos:** Node.js **≥ 20**, **pnpm** (via Corepack), **Docker Desktop** (Windows) recomendado.
+
+### Windows — primeira vez (ordem exacta)
+
+1. **Instalar Node LTS** a partir de [nodejs.org](https://nodejs.org) (inclui `npm`).
+2. **Activar Corepack** (PowerShell ou CMD como utilizador normal):
+
+   ```powershell
+   corepack enable
+   corepack prepare pnpm@10.12.1 --activate
+   ```
+
+   Se `corepack enable` falhar com *EPERM* em `Program Files`, executa o terminal **como administrador** uma vez, ou instala pnpm globalmente: `npm install -g pnpm@10.12.1`.
+
+3. **Clonar / abrir o repo** e na raiz `c:\dev\relaydesk`:
+
+   ```powershell
+   pnpm install
+   ```
+
+4. **Variáveis de ambiente** — na raiz, cria `.env` (podes partir de `.env.example` se existir no repo). Garante pelo menos:
+
+   - `DATABASE_URL=postgresql://relaydesk:relaydesk@127.0.0.1:5432/relaydesk`
+   - `REDIS_URL=redis://127.0.0.1:6379`
+   - `RABBITMQ_URL=amqp://relaydesk:relaydesk@127.0.0.1:5672`
+   - `JWT_SECRET` (≥ 16 caracteres) e `INTERNAL_SERVICE_TOKEN` (≥ 32 caracteres) para dev.
+
+5. **Subir infraestrutura Docker** (Postgres + Redis + RabbitMQ):
+
+   ```powershell
+   pnpm dev:infra
+   ```
+
+   Espera os healthchecks ficarem *healthy* (pode levar 1–2 minutos na primeira vez).
+
+6. **Prisma — gerar client e aplicar migrações**
+
+   ```powershell
+   pnpm db:generate
+   pnpm db:migrate:deploy
+   ```
+
+   Desenvolvimento com histórico interactivo: `pnpm db:migrate:dev` (cria migração a partir do schema). Para validar estado: `pnpm db:migrate:status`.
+
+7. **Seed (dados demo)**
+
+   ```powershell
+   pnpm db:seed
+   ```
+
+   Lê o output: credenciais / tenant demo se o seed as imprimir.
+
+8. **Opcional — observabilidade** (Prometheus, Grafana, Loki, Tempo):
+
+   ```powershell
+   pnpm dev:obs
+   ```
+
+   Define `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces` nos serviços que emitam traces.
+
+9. **Microsserviços** (um terminal):
+
+   ```powershell
+   pnpm dev:services
+   ```
+
+10. **Frontend Next.js** (outro terminal):
+
+    ```powershell
+    pnpm dev
+    ```
+
+11. **Smoke tests sugeridos**
+
+    - **Site:** `http://localhost:3000` — landing, `/docs`, `/status`.
+    - **Gateway:** `http://localhost:4010/docs`
+    - **Messaging:** `http://localhost:4012/docs`
+    - **Telegram:** liga bot em `/channels` com `PUBLIC_WEBHOOK_BASE_URL` apontando para o gateway (túnel ngrok se necessário) e envia mensagem ao bot.
+    - **WebSocket:** login no dashboard → inbox; ver eventos `relay:event`.
+    - **Webhooks engine:** cria subscrição em `/workspace/webhooks` e dispara evento de domínio.
+    - **Grafana:** `http://localhost:3001` (credenciais do `docker-compose.observability.yml`).
+
+### Comandos rápidos (referência)
 
 ```bash
 pnpm install
 pnpm dev:infra          # Postgres + Redis + RabbitMQ
 pnpm dev:obs            # opcional: Prometheus + Grafana + Loki + Tempo (+ Promtail com --profile logs)
-pnpm db:migrate:deploy  # aplicar migrações
+pnpm db:generate        # Prisma Client
+pnpm db:migrate:deploy  # aplicar migrações (CI / local após pull)
 pnpm db:seed            # tenant demo (ver output do seed)
 pnpm dev:services       # serviços Nest em watch
 pnpm dev                # Next.js (outro terminal)
 ```
 
-Copiar `.env.example` → `.env` na raiz e ajustar URLs/portas. Para **readiness de filas** no messaging, definir `RABBITMQ_MANAGEMENT_URL` (Management API). Para **tracing** local com o stack Grafana: `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces`.
+Para **readiness de filas** no messaging, definir `RABBITMQ_MANAGEMENT_URL` (Management API). Para **Telegram**, definir `PUBLIC_WEBHOOK_BASE_URL` e (recomendado em produção) `RELAYDESK_CREDENTIALS_ENCRYPTION_KEY` (64 hex).
+
+### Screenshots (placeholders)
+
+Na documentação de produto podes reservar slots para capturas: landing hero, `/status`, Grafana overview, inbox com realtime, `/workspace/webhooks` — adiciona ficheiros em `public/screenshots/` quando tiveres assets.
 
 ---
 

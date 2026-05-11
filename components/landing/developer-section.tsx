@@ -12,6 +12,7 @@ import {
   Bot,
   Terminal
 } from "lucide-react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 
 const codeExamples = [
@@ -172,12 +173,14 @@ export function DeveloperSection() {
             </div>
 
             <div className="flex flex-wrap gap-4">
-              <Button className="bg-gradient-to-r from-violet-500 to-blue-600 hover:from-violet-600 hover:to-blue-700 text-white border-0">
-                <Code2 className="mr-2 w-4 h-4" />
-                View Documentation
+              <Button asChild className="font-medium">
+                <Link href="/docs">
+                  <Code2 className="mr-2 h-4 w-4" />
+                  Documentação
+                </Link>
               </Button>
-              <Button variant="outline" className="border-white/10 hover:bg-white/5">
-                API Reference
+              <Button asChild variant="outline" className="border-border hover:bg-secondary/80">
+                <Link href="/api-reference">API Reference</Link>
               </Button>
             </div>
           </motion.div>

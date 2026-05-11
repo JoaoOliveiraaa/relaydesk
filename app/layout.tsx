@@ -15,8 +15,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'RelayDesk - Automação de Atendimento Omnichannel com IA',
-  description: 'Plataforma enterprise de automação de atendimento omnichannel com IA. Centralize WhatsApp, Instagram, Telegram e mais em um só lugar.',
+  title: 'RelayDesk — Omnichannel enterprise & developer platform',
+  description:
+    'Eventos, RabbitMQ, realtime, motor de webhooks, OpenTelemetry e integrações reais. Landing, developer portal, status e documentação em relaydesk.',
   generator: 'RelayDesk',
   keywords: ['atendimento', 'omnichannel', 'IA', 'automação', 'WhatsApp', 'suporte', 'tickets'],
   authors: [{ name: 'RelayDesk' }],
