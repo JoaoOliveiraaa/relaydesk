@@ -32,11 +32,11 @@ export interface AiProcessingPayload {
 }
 
 export interface WebhookDeliveryPayload {
+  /** ID of a WebhookEngineDelivery record. The worker fetches full context from DB. */
+  deliveryId: string;
   tenantId: string;
-  webhookEventId: string;
-  targetUrl: string;
-  signingSecret?: string;
-  body: Record<string, unknown>;
+  /** Kept for backwards compatibility with legacy WebhookEvent flow */
+  webhookEventId?: string;
 }
 
 export interface NotificationSendPayload {

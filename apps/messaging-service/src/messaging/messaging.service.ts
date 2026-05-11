@@ -21,12 +21,14 @@ import { RedisKeys } from '@relaydesk/redis';
 import { AmqpPublisher } from '../infra/amqp.publisher';
 import { REDIS } from '../infra/infra.module';
 import type { IngestMessageDto } from './dto/ingest-message.dto';
+import { WebhookEventPublisher } from '../webhooks/webhook-event.publisher';
 
 @Injectable()
 export class MessagingService {
   constructor(
     @Inject(REDIS) private readonly redis: Redis,
     private readonly amqp: AmqpPublisher,
+    private readonly webhookPublisher: WebhookEventPublisher,
   ) {}
 
   async ingest(dto: IngestMessageDto, correlationId?: string) {
@@ -188,6 +190,26 @@ export class MessagingService {
       },
     };
     await this.amqp.publish(RELAY_EVENT_ROUTING.REALTIME_OUTBOUND, envelope, message.id);
+
+    // Fire webhook events to all matching subscriptions (non-blocking)
+    this.webhookPublisher
+      .publish(
+        dto.tenantId,
+        'message.received',
+        {
+          messageId: message.id,
+          conversationId: conversation.id,
+          channel: dto.channel,
+          sender: dto.sender,
+          contentPreview: dto.content.slice(0, 256),
+          timestamp: new Date(dto.timestamp).toISOString(),
+        },
+        correlationId,
+      )
+      .catch((err) => {
+        // Webhook fan-out errors must never block message ingestion
+        void err;
+      });
 
     return {
       conversationId: conversation.id,

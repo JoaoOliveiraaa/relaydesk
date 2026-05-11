@@ -41,7 +41,8 @@ Plataforma **SaaS multi-tenant** para operações de suporte e inbox em tempo re
 | `packages/shared-types` | Tipos + **Zod** para envelopes de eventos |
 | `packages/platform-nest` | Swagger RelayDesk (branding, JWT, internal token) |
 | `packages/otel` | Bootstrap OpenTelemetry → OTLP (Jaeger / Tempo) |
-| `packages/sdk` | Foundation de paths e versão de API (cliente TS futuro) |
+| `apps/webhook-service` | Webhook delivery engine — HMAC, retries, DLQ, Prometheus |
+| `packages/sdk` | Client TS: paths, typings, `verifyWebhookSignature`, `constructWebhookEvent` |
 
 ---
 
@@ -157,13 +158,148 @@ Pacote **`@relaydesk/sdk`**: constantes de versão e **paths estáveis** (`Relay
 
 ---
 
+## Webhook Engine (enterprise-grade)
+
+### Arquitectura de delivery
+
+```
+Domain Event (message.received, conversation.created, …)
+       │
+       ▼
+WebhookEventPublisher (messaging-service)
+       │  fan-out: 1 delivery record per active subscription
+       ▼
+WebhookEngineDelivery  ─── persisted to PostgreSQL ───────────┐
+       │                                                       │
+       ▼                                                       │
+RabbitMQ  q.webhook.delivery  (durable, DLX)                  │
+       │                                                       │
+       ▼                                                       │
+webhook-service  WebhookDeliveryService                        │
+       │  HMAC sign → HTTP POST → persist result ◀────────────┘
+       ├── success  → status=delivered, AuditLog
+       ├── failure  → exponential backoff retry (up to maxAttempts)
+       └── dead     → status=dead, DLQ (q.webhook.delivery.dlq)
+```
+
+### HMAC Signature (Stripe-style)
+
+Every delivery includes:
+
+| Header | Example |
+|--------|---------|
+| `x-relaydesk-signature` | `t=1715385600,v1=abc123…` |
+| `x-relaydesk-timestamp` | `1715385600` |
+| `x-relaydesk-event` | `message.received` |
+| `x-relaydesk-delivery` | `clx…` |
+
+**Signed string**: `{timestamp}.{body}`
+
+**Replay attack prevention**: reject if `|now − t| > 300s`.
+
+**Verification (Node.js)**:
+
+```ts
+import { createHmac, timingSafeEqual } from 'node:crypto';
+
+function verify(secret: string, body: string, header: string): boolean {
+  const parts = Object.fromEntries(header.split(',').map(p => p.split('=')));
+  const timestamp = Number(parts['t']);
+  if (Math.abs(Date.now() / 1000 - timestamp) > 300) return false;
+  const expected = createHmac('sha256', secret)
+    .update(`${timestamp}.${body}`)
+    .digest('hex');
+  return timingSafeEqual(Buffer.from(parts['v1']), Buffer.from(expected));
+}
+```
+
+Or use `@relaydesk/sdk`:
+
+```ts
+import { verifyWebhookSignature, constructWebhookEvent } from '@relaydesk/sdk';
+
+const event = constructWebhookEvent(rawBody, req.headers['x-relaydesk-signature'], secret);
+console.log(event.type);   // 'message.received'
+console.log(event.data);   // typed payload
+```
+
+### Retry Strategy
+
+| Attempt | Delay |
+|---------|-------|
+| 1 | 2s |
+| 2 | 4s |
+| 3 | 8s |
+| 4 | 16s |
+| 5 | 32s (cap: configurable, default 300s) |
+
+Configurable per subscription via `retryPolicy`:
+
+```json
+{
+  "maxAttempts": 5,
+  "backoffBase": 2,
+  "backoffCap": 300,
+  "timeoutSeconds": 30
+}
+```
+
+### DLQ Strategy
+
+Deliveries exceeding `maxAttempts` are:
+1. Marked `status=dead` in `WebhookEngineDelivery`
+2. Written to `AuditLog` with action `webhook.dead`
+3. NACK'd to RabbitMQ DLQ `q.webhook.delivery.dlq`
+4. Available for manual replay via `POST /v1/webhook-deliveries/:id/replay`
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/webhooks` | Create subscription (returns secret once) |
+| `GET` | `/v1/webhooks` | List subscriptions |
+| `GET` | `/v1/webhooks/:id` | Get subscription |
+| `PATCH` | `/v1/webhooks/:id` | Update URL / events / retryPolicy / active |
+| `DELETE` | `/v1/webhooks/:id` | Soft-delete |
+| `POST` | `/v1/webhooks/:id/rotate-secret` | Rotate HMAC secret |
+| `POST` | `/v1/webhooks/:id/test` | Send test event |
+| `GET` | `/v1/webhook-deliveries` | List deliveries (filterable) |
+| `GET` | `/v1/webhook-deliveries/:id` | Delivery detail + payload |
+| `POST` | `/v1/webhook-deliveries/:id/replay` | Replay delivery |
+
+All endpoints exposed via the API Gateway at `:4010/v1/…` with full Swagger docs.
+
+### Prometheus Metrics (webhook-service `:4014/metrics`)
+
+| Metric | Labels |
+|--------|--------|
+| `relaydesk_webhook_deliveries_total` | `event_type`, `status` |
+| `relaydesk_webhook_delivery_latency_ms` | `event_type` |
+| `relaydesk_webhook_retries_total` | `event_type` |
+| `relaydesk_webhook_failures_total` | `event_type`, `reason` |
+| `relaydesk_webhook_dlq_total` | `event_type` |
+
+### Supported Event Types
+
+```
+conversation.created    conversation.updated
+conversation.resolved   conversation.assigned
+message.received        message.sent
+contact.created         contact.updated
+webhook.test
+```
+
+Use `["*"]` as `eventTypes` to subscribe to all events.
+
+---
+
 ## Roadmap (alto nível)
 
 1. **RBAC avançado** — permissões por recurso, policies estilo Slack/GitHub, guards WebSocket.
-2. **Motor de webhooks** — assinaturas HMAC, backoff exponencial, DLQ de webhooks, replay idempotente (modelos já preparados).
-3. **Audit pipeline** — escrita assíncrona a partir de eventos + UI de pesquisa por tenant.
-4. **Métricas avançadas** — lag de filas, DLQ size, ligação a dashboards Grafana.
-5. **SDK gerado** — a partir de `openapi.json` + publicação npm.
+2. **Audit pipeline** — escrita assíncrona a partir de eventos + UI de pesquisa por tenant.
+3. **Métricas avançadas** — lag de filas, DLQ size, ligação a dashboards Grafana.
+4. **SDK gerado** — a partir de `openapi.json` + publicação npm.
+5. **Webhook filtering** — JSONPath / CEL expressions para filtrar eventos antes da entrega.
 
 ---
 

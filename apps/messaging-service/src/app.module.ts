@@ -6,6 +6,7 @@ import { InfraModule } from './infra/infra.module';
 import { InboxModule } from './inbox/inbox.module';
 import { InternalModule } from './internal/internal.module';
 import { MessagingModule } from './messaging/messaging.module';
+import { WebhooksModule } from './webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { MessagingModule } from './messaging/messaging.module';
     MessagingModule,
     InboxModule,
     InternalModule,
+    WebhooksModule,
   ],
 })
 export class AppModule {}
