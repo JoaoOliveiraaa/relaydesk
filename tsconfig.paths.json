@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@relaydesk/common": ["packages/common"],
+      "@relaydesk/config": ["packages/config"],
+      "@relaydesk/redis": ["packages/redis"],
+      "@relaydesk/otel": ["packages/otel"],
+      "@relaydesk/platform-nest": ["packages/platform-nest"],
+      "@relaydesk/shared-types": ["packages/shared-types"],
+      "@relaydesk/queue": ["packages/queue"],
+      "@relaydesk/database": ["packages/database"],
+      "@relaydesk/channel-adapters": ["packages/channel-adapters"],
+      "@relaydesk/sdk": ["packages/sdk"]
+    }
+  }
+}

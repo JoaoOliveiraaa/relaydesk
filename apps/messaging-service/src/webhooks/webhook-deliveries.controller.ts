@@ -21,6 +21,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import type { Request } from 'express';
+import type { Prisma, WebhookEngineDelivery } from '@relaydesk/database';
 import { prisma } from '@relaydesk/database';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import type { JwtPayload } from '../auth/jwt.strategy';
@@ -111,7 +112,7 @@ export class WebhookDeliveriesController {
   async findOne(
     @Param('id') id: string,
     @Req() req: Request & { user: JwtPayload },
-  ) {
+  ): Promise<WebhookEngineDelivery> {
     const delivery = await prisma.webhookEngineDelivery.findFirst({
       where: { id, tenantId: req.user.tenantId },
     });
@@ -143,7 +144,7 @@ export class WebhookDeliveriesController {
         subscriptionId: original.subscriptionId,
         eventType: original.eventType,
         idempotencyKey: `replay:${id}:${randomBytes(6).toString('hex')}`,
-        payload: original.payload,
+        payload: original.payload as Prisma.InputJsonValue,
         correlationId: `replay:${original.correlationId ?? id}`,
       },
     });

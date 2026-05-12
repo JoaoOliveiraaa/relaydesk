@@ -1,8 +1,9 @@
 import { HttpService } from '@nestjs/axios';
-import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import type { Request } from 'express';
 import { randomUUID } from 'crypto';
 import { firstValueFrom } from 'rxjs';
+import { isAxiosError } from 'axios';
 
 function definedHeaders(h: Record<string, string | undefined>): Record<string, string> | undefined {
   const o: Record<string, string> = {};
@@ -14,6 +15,8 @@ function definedHeaders(h: Record<string, string | undefined>): Record<string, s
 
 @Injectable()
 export class GatewayService {
+  private readonly log = new Logger(GatewayService.name);
+
   constructor(private readonly http: HttpService) {}
 
   private authBase(): string {
@@ -60,7 +63,13 @@ export class GatewayService {
         }),
       );
       return { status: res.status, data: res.data };
-    } catch {
+    } catch (err) {
+      const detail = isAxiosError(err)
+        ? `${err.code ?? 'ERR'} ${err.message}${err.response ? ` status=${err.response.status}` : ''}`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+      this.log.warn(`proxyAuth falhou → ${url} (${detail}); AUTH_SERVICE_URL=${this.authBase()}`);
       throw new ServiceUnavailableException('Auth service indisponível');
     }
   }
@@ -83,7 +92,13 @@ export class GatewayService {
         }),
       );
       return { status: res.status, data: res.data };
-    } catch {
+    } catch (err) {
+      const detail = isAxiosError(err)
+        ? `${err.code ?? 'ERR'} ${err.message}${err.response ? ` status=${err.response.status}` : ''}`
+        : err instanceof Error
+          ? err.message
+          : String(err);
+      this.log.warn(`proxyMessaging falhou → ${url} (${detail}); MESSAGING_SERVICE_URL=${this.messagingBase()}`);
       throw new ServiceUnavailableException('Messaging service indisponível');
     }
   }

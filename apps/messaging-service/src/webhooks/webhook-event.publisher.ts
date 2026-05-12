@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { prisma, WebhookSubscriptionState } from '@relaydesk/database';
+import { prisma, WebhookSubscriptionState, type Prisma } from '@relaydesk/database';
 import { AmqpPublisher } from '../infra/amqp.publisher';
 import { RELAY_EVENT_ROUTING } from '@relaydesk/shared-types';
 import type { WebhookEventType } from './dto/create-webhook.dto';
@@ -71,7 +71,7 @@ export class WebhookEventPublisher {
               subscriptionId: sub.id,
               eventType,
               idempotencyKey,
-              payload,
+              payload: payload as unknown as Prisma.InputJsonValue,
               correlationId: correlationId ?? eventId,
             },
             update: {},

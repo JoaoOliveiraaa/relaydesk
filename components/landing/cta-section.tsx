@@ -1,11 +1,29 @@
 "use client"
 
 import Link from "next/link"
+import { useMemo } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Zap, Sparkles } from "lucide-react"
 
+const PARTICLE_COUNT = 20
+
+function useStableParticles() {
+  return useMemo(
+    () =>
+      Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+        key: i,
+        leftPct: ((i * 37 + 13) % 100) + (i % 7) * 0.01,
+        topPct: ((i * 73 + 29) % 100) + (i % 5) * 0.01,
+        duration: 3 + ((i * 17) % 20) / 10,
+        delay: ((i * 11) % 20) / 10,
+      })),
+    [],
+  )
+}
+
 export function CTASection() {
+  const particles = useStableParticles()
   return (
     <section className="relative py-24 lg:py-32">
       <div className="mx-auto max-w-7xl px-6 lg:px-8">
@@ -48,22 +66,22 @@ export function CTASection() {
               />
 
               {/* Floating Particles */}
-              {[...Array(20)].map((_, i) => (
+              {particles.map((p) => (
                 <motion.div
-                  key={i}
+                  key={p.key}
                   className="absolute w-1 h-1 bg-white/20 rounded-full"
                   style={{
-                    left: `${Math.random() * 100}%`,
-                    top: `${Math.random() * 100}%`,
+                    left: `${p.leftPct}%`,
+                    top: `${p.topPct}%`,
                   }}
                   animate={{
                     y: [0, -30, 0],
                     opacity: [0.2, 0.5, 0.2],
                   }}
                   transition={{
-                    duration: 3 + Math.random() * 2,
+                    duration: p.duration,
                     repeat: Infinity,
-                    delay: Math.random() * 2,
+                    delay: p.delay,
                     ease: "easeInOut",
                   }}
                 />

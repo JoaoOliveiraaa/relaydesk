@@ -13,5 +13,5 @@ export function startActiveSpan<T>(
   options: SpanOptions,
   fn: (span: Span) => Promise<T>,
 ): Promise<T> {
-  return getRelaydeskTracer(tracerName).startActiveSpan(spanName, options, (span) => fn(span));
+  return getRelaydeskTracer(tracerName).startActiveSpan(spanName, options, (span: Span) => fn(span));
 }

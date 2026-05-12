@@ -70,10 +70,12 @@ export function Topbar() {
     return () => clearInterval(timer)
   }, [])
 
-  // Simulate connection changes
+  // Simulate connection changes (deterministic so SSR/CSR match)
   useEffect(() => {
+    let tick = 0
     const interval = setInterval(() => {
-      setIsConnected(Math.random() > 0.1)
+      tick += 1
+      setIsConnected(tick % 45 !== 0)
     }, 30000)
     return () => clearInterval(interval)
   }, [])

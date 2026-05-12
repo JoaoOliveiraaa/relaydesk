@@ -43,7 +43,13 @@ const envSchema = z.object({
 export type RelayDeskEnv = z.infer<typeof envSchema>;
 
 export function loadEnv(processEnv: NodeJS.ProcessEnv = process.env): RelayDeskEnv {
-  const parsed = envSchema.safeParse(processEnv);
+  const merged: NodeJS.ProcessEnv = { ...processEnv };
+  const csv = merged.CORS_ORIGINS?.toString().trim();
+  const single = merged.CORS_ORIGIN?.toString().trim();
+  if ((!csv || csv === '') && single) {
+    merged.CORS_ORIGINS = single;
+  }
+  const parsed = envSchema.safeParse(merged);
   if (!parsed.success) {
     const msg = parsed.error.flatten().fieldErrors;
     throw new Error(`Invalid environment: ${JSON.stringify(msg)}`);
@@ -56,4 +62,26 @@ export function corsOriginsFromEnv(csv: string): string[] {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+}
+
+/** Opções alinhadas ao `enableCors` do Nest (Express) para browser + credenciais. */
+export function relaydeskHttpCorsOptions(originsCsv: string) {
+  const origin = corsOriginsFromEnv(originsCsv);
+  return {
+    origin,
+    credentials: true as const,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'X-Requested-With',
+      'X-Internal-Service-Token',
+      'X-Tenant-Id',
+      'X-Correlation-Id',
+      'X-Request-Id',
+    ],
+    exposedHeaders: ['Content-Disposition'],
+    maxAge: 86400,
+  };
 }

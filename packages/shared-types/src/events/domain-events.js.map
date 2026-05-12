@@ -1,0 +1,1 @@
+{"version":3,"file":"domain-events.js","sourceRoot":"","sources":["domain-events.ts"],"names":[],"mappings":";;;AAEa,QAAA,mBAAmB,GAAG;IACjC,gBAAgB,EAAE,kBAAkB;IACpC,iBAAiB,EAAE,mBAAmB;IACtC,aAAa,EAAE,eAAe;IAC9B,gBAAgB,EAAE,kBAAkB;IACpC,iBAAiB,EAAE,mBAAmB;IACtC,mEAAmE;IACnE,iBAAiB,EAAE,mBAAmB;IACtC,kEAAkE;IAClE,eAAe,EAAE,iBAAiB;IAClC,kEAAkE;IAClE,gBAAgB,EAAE,kBAAkB;CAC5B,CAAC"}

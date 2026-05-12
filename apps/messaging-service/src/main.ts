@@ -12,7 +12,7 @@ import {
   ResponseEnvelopeInterceptor,
 } from '@relaydesk/common';
 import type { RelayDeskEnv } from '@relaydesk/config';
-import { corsOriginsFromEnv } from '@relaydesk/config';
+import { relaydeskHttpCorsOptions } from '@relaydesk/config';
 import { setupRelaydeskSwagger } from '@relaydesk/platform-nest';
 import { AppModule } from './app.module';
 
@@ -23,7 +23,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
   const config = app.get(ConfigService);
   const env = config.get<RelayDeskEnv>('relayEnv')!;
-  app.enableCors({ origin: corsOriginsFromEnv(env.CORS_ORIGINS), credentials: true });
+  app.enableCors(relaydeskHttpCorsOptions(env.CORS_ORIGINS));
   const usePino = process.env.USE_PINO_LOGGER !== '0';
   const logger = usePino ? createRelayPinoLogger('messaging-service') : new RelayLogger('messaging-service');
   app.useLogger(logger);

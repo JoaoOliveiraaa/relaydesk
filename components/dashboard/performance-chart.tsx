@@ -16,26 +16,27 @@ import { BarChart3, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-const generateData = () => {
-  const hours = ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]
-  return hours.map((hour) => ({
+const hours = ["00:00", "04:00", "08:00", "12:00", "16:00", "20:00", "24:00"]
+
+function buildDemoSeries() {
+  return hours.map((hour, i) => ({
     time: hour,
-    tickets: Math.floor(Math.random() * 50) + 20,
-    ai: Math.floor(Math.random() * 40) + 15,
-    humans: Math.floor(Math.random() * 30) + 10,
+    tickets: 22 + ((i * 11) % 48),
+    ai: 18 + ((i * 7) % 38),
+    humans: 12 + ((i * 5) % 28),
   }))
 }
 
 const periods = ["Hoje", "7 dias", "30 dias", "90 dias"]
 
 export function PerformanceChart() {
-  const [data, setData] = useState(generateData())
+  const [data, setData] = useState(() => buildDemoSeries())
   const [activePeriod, setActivePeriod] = useState("Hoje")
 
   // Simulate real-time updates
   useEffect(() => {
     const interval = setInterval(() => {
-      setData(generateData())
+      setData(buildDemoSeries())
     }, 10000)
 
     return () => clearInterval(interval)
